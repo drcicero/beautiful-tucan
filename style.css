@@ -29,7 +29,7 @@ small {color: #888; font-size:.9em; line-height:1em;}
 .input-item {position:relative;}
 input[type="checkbox"] {position:absolute; top:0; bottom:0; margin:auto; left:1rem; z-index: 1;}
 input[type="checkbox"]:checked + label {background:#9b0}
-/* label {width:3rem; top:0; bottom:0; position:absolute} */
+.input-item label {width:3rem; top:0; bottom:0; position:absolute}
 .item {padding:.5em; margin:.5em 0; margin-left:3.5em; display:block; background:#eee;
   border:1px solid white;}
 .item:hover {border:1px solid black; cursor:pointer;}

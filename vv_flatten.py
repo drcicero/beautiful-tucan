@@ -1,14 +1,8 @@
 # coding=utf-8
-import collections
-import itertools
-import json
-import datetime
+import collections, itertools, json, datetime, locale, utils
 import typing as t
-import locale
-import utils
 
-import bs4
-import pystache
+import bs4, pystache
 from bs4.element import Tag as Bs4Tag
 
 locale.setlocale(locale.LC_TIME, "de_DE.UTF-8") # german month names
