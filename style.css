@@ -1,39 +1,25 @@
-.tab { display: inline-block; padding: .5em .5em; border: 1px solid silver; max-height: 1em; max-width: 7em; overflow: hidden; text-overflow: ellipsis; background: #eee; }
-.tab:hover, .tab-active { cursor: pointer; border-bottom: none; background: white; }
-.supercategory {}
+body {font: 18px/1.4 'EB Garamond', Garamond, Georgia, Roboto, sans-serif;}
+body {margin:auto; max-width:40em; padding:1em; padding-top:1em;}
+.hidden {display:none}
 
-#fishy-times {width: 200%}
-#fishy-times .time-day {width: 14%; float: left}
-#fishy-times .time-minute {height: 20px; overflow-y: auto; border-top:1px solid #ddd;}
-#fishy-times .time-minute > :nth-child(1) {display: none}
-#fishy-times .item {margin-left: 0}
+button {background:linear-gradient(#eee, #ccc); color:black; border:1px solid #ccc; padding:.5em;border-radius: 5px;}
+h1 {font-size: 2em;}
+small {color: #888; font-size:.9em; line-height:1em;}
+
+.course {padding:.5em; margin:.5em 0; /* margin-left:3.5em; */
+  background:#eee; border:1px solid white;}
+.course:hover {border:1px solid black; cursor:pointer;}
+.course.active {border:1px solid black;}
+.course > span {display:inline-block;overflow:hidden;vertical-align:top;text-overflow:ellipsis;white-space:nowrap}
+clear {clear:both; display:block}
+
 .item-not-marked {background: silver}
 .item-not-marked.orange-color {color: silver}
 .item-marked {background: orange}
 .item-marked.orange-color {color: orange}
 
-body {font: 16px/1.4 'EB Garamond', Garamond, Georgia, Roboto, sans-serif;}
-body {margin:0; margin-top:1em;}
-.half {position: absolute; max-width:50%; box-sizing: border-box; margin:0 1%; padding: 0 2%;}
-
-.category {font-weight:bold; margin:2em 0 0;}
-.details {display:none}
-.details.active  {display:block}
-.hidden {display:none}
-button {background:linear-gradient(#eee, #ccc); color:black; border:1px solid #ccc; padding:.5em;border-radius: 5px;}
-
-h1 {font-size: 2em;}
-small {color: #888; font-size:.9em; line-height:1em;}
-/* h1 {background:#9b0; color:white; padding:.1em .5em; margin:.5em 0;} */
-
 .input-item {position:relative;}
 input[type="checkbox"] {position:absolute; top:0; bottom:0; margin:auto; left:1rem; z-index: 1;}
 input[type="checkbox"]:checked + label {background:#9b0}
 .input-item label {width:3rem; top:0; bottom:0; position:absolute}
-.item {padding:.5em; margin:.5em 0; margin-left:3.5em; display:block; background:#eee;
-  border:1px solid white;}
-.item:hover {border:1px solid black; cursor:pointer;}
-.item.active {border:1px solid black;}
 
-#input-categories:checked ~ #fishy-times {display: none}
-#input-times:checked ~ #fishy-categories {display: none}

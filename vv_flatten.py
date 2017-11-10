@@ -1,5 +1,5 @@
 # coding=utf-8
-import collections, itertools, json, datetime, locale, utils
+import collections, itertools, json, datetime, locale, utils, re
 import typing as t
 
 import bs4, pystache
@@ -41,44 +41,45 @@ def adapt(entry: t.Dict[str, t.Any]) -> t.Dict[str, str]:
     # remove redundancies from title and category; create unique id
     category = entry["path"][-1]
     title = utils.roman_to_latin_numbers(entry["title"])
-    courss_id = title[:title.index(" ")]  # get id
+    course_id = title[:title.index(" ")] # get id
     title = title[title.index(" ") + 1:] # remove id from title
     title = utils.remove_bracketed_part(utils.remove_bracketed_part(title)) # remove up to two brackets
-    force_ignore = False
-    if not force_ignore and len(entry["path"]) > 1: # > 2 and entry["path"][-2].endswith("Studienleistungen"):
+    title = title.replace("Praktikum in der Lehre - ", "")
+    
+    category = " | ".join(entry["path"])
+    if "Seminare" in category and entry["credits"] == "":
+        category = "Oberseminare"
+    replacements = [
+      # PO 2009 Bsc
+      ("Grundstudium", "Pflicht"),
+      ("Kanonikfächer \| Kanonische Einführungsveranstaltungen", "Pflicht"),
+      ("Wahlpflichtbereich \| Wahlpflichtbereich A", "Wahl-A"),
+      ("Wahlpflichtbereich \| Wahlpflichtbereich B", "Wahl-B"),
+      ("Projekte, Projektpraktika und ähnliche Veranstaltungen", "Praktika"),
+      (" \| [^ ]* Prüfungsleistungen", ""),
+      (" \| [^|]* \| ([ABCDEFGHJIKLMNOPQRSTUVWXYZ]*) Studienleistungen \| \\1 (.*)$", " | \\2 "),
 
-        PIDL = "Praktikum in der Lehre - "
-        if PIDL in title:
-            title = title.replace(PIDL, "")
-            category = "Praktika in der Lehre"
-
-        if False:
-            title = category[:category.index(" ") + 1] + title
-            category = category[category.index(" ") + 1:]
-
-#        if category not in ("Praktika in der Lehre", "Seminare"):
-#            category = "Praktika, Projektpraktika und ähnliche Veranstaltungen"
-        # if entry["credits"] == "": print(category)
-        if category.startswith("Seminare") and entry["credits"] == "":
-            category = "Oberseminare"
-        if "Gesamtkatalog aller Module des Sprachenzentrums" in entry["path"]:
-            category = "Sprachzentrum · " + category
-        else:
-            category = entry["path"][1] + " · " + category
-
-        category = ( category
-          .replace("Vorgezogene Masterleistungen der Informatik", "Master")
-          .replace("Praktika, Projektpraktika, ähnliche LV", "Praktika")
-          .replace("Projekte, Projektpraktika und ähnliche Veranstaltungen", "Praktika")
-          .replace("Module der ", "")
-        )
-
-#        print(category, "|", title)
-    else:
-        category = "Bachelor · " + category
-    category = category.split(" · ", 1)
-    category = category[0].replace(" ", "-") +" · "+ category[1]
-    # course_id = "".join(c for c in (category + "-" + title.replace(" ", "-")).lower() if c=="-" or c.isalnum())
+      # PO 2015 Bsc
+      ("Pflichtbereich", "BSc Pflicht"),
+      ("Wahlbereich \| Studienleistungen", "BSc Wahl"),
+      ("Vorgezogene Masterleistungen \| Vorgezogene Masterleistungen der Informatik \|", "MSc"),
+      ("Wahlbereich Fachprüfungen", "Wahl-A"),
+      ("Wahlbereich Studienleistungen", "Wahl-B"),
+      (" \(sp-FB20\)", ""),
+      ("Praktika, Projektpraktika, ähnliche LV", "Praktika"),
+      ("Praktikum in der Lehre", "Lehrpraktika"),
+      ("Praktika in der Lehre", "Lehrpraktika"),
+      ("Wahlbereich \| Fachübergreifende Lehrveranstaltungen", "Fachübergreifend"),
+      ("Module der ", ""),
+      ("Fachübergreifend \| Gesamtkatalog aller Module des Sprachenzentrums", "Sprachzentrum"),
+      (" \| ([^|]*) \| \\1", " | \\1 "),
+      ("Wahlbereiche \| ", ""),
+      
+      ("Projektpraktika", "Praktika"),
+      ("Projekte", "Praktika")
+    ]
+    for match, result in replacements:
+      category = re.sub(match, result, category)
 
     # summarize recurring weekly events
     def get_time(day: Bs4Tag, start: Bs4Tag, end: Bs4Tag, room: Bs4Tag
@@ -136,9 +137,10 @@ def adapt(entry: t.Dict[str, t.Any]) -> t.Dict[str, str]:
 
     result = {
         **entry,
-        "id": courss_id, "abbr": abbr, "title": title,
+        "id": course_id,
         "clean_time": clean_time, "first_to_last": first_to_last,
-        "owner": owner, "short_owner": short_owner,
+        "title": title,                 "title_short": abbr,
+        "owner": owner,                 "owner_short": short_owner,
         "category": category,
         "credits": str(entry["credits"]).zfill(2),
     }
@@ -184,7 +186,13 @@ if __name__ == "__main__":
 
     # consider only prüfungsleistungen / vorlesungen for calendar
     data = [entry for entry in data
-            if "Prüfungsleistungen" not in entry["category"]]
+            if  "Sprachzentrum"    not in entry["category"]
+            and "Fachübergreifend" not in entry["category"]]
+
+    data = from_stream([(item["category"], item) for item in data])
+    for i in data: data[i].sort(key=lambda x:x["credits"], reverse=True)
+    data = [course for _,category in data.items() for course in category]
+#    import pprint; pprint.pprint([(i["category"], i["title"]) for i in data])
 
     for entry in data:
         for event in entry["clean_time"]:
@@ -193,18 +201,9 @@ if __name__ == "__main__":
             day, (h, m), (h2, m2), _ = event["time"]
             entry["allocated"] = allocate(grid, day, int(h * 6 + m / 10), int(h2 * 6 + m2 / 10))
 
-    categories = from_stream([item["category"].split(" · ", 1) + [item] for item in data])
-    for i in categories:
-        for j in categories[i]:
-            categories[i][j].sort(key=lambda x:x["credits"], reverse=True)
-    categories = list(keyvalues(categories))
-
-    # import pprint; pprint.pprint(categories)
-
-    js_data = json.dumps(data, indent=" ")
     with open("code.js") as f: js_code = f.read()
-
     with open("style.css") as f: css_style = f.read()
+    js_data = json.dumps(data, indent=" ")
 
     today = "03. Okt. 2017" # datetime.datetime.today().strftime("%d. %b. %Y")
 
@@ -221,7 +220,7 @@ if __name__ == "__main__":
     </script>
   </head><body>
 
-    <div class="half" style="position: fixed;right: 0;height: calc(100vh - 2em);overflow-x:none;overflow-y:scroll;">
+    <div>
       <!--
       <div id="details-blabla" class="details active">
         <h1>PO Master 2015</h1>
@@ -258,11 +257,11 @@ if __name__ == "__main__":
       {{/categories}}
     </div>
 
-    <div class="half">
+    <div>
       <div>
         <h1>{{title}}</h1>
         <b>Benutzung auf eigene Gefahr!</b> Dies ist eine inoffizielle Seite.
-        Es könnte sein, dass bspw. ein Kurs in ihrer PO nicht wählbar ist oder
+        Es könnte sein, dass bspw. ein Kurs in nicht existiert ist oder
         eine andere Anzahl an CP bringt, die Räume geändert wurden, etc.
         Zuletzt aktualisiert: {{today}}, Daten aus {{path}}.<br>
         <br>
@@ -275,31 +274,7 @@ if __name__ == "__main__":
       <input type="radio" name="fishy" value="0" id="input-times"> Times
       -->
 
-      {{#categories}}
-        <input type="radio" name="supercategory" value="{{key}}" id="tab-{{key}}" class="tab-input" hidden>
-        <label for="{{key}}" class="tab">{{key}}</label>
-      {{/categories}}
-
-      <div id=fishy-categories>
-        {{#categories}}
-        <div class="supercategory" id="supercategory-{{key}}">{{key}}<br>
-        {{#value}}
-        <div class="category">::: {{key}}</div>
-        {{#value}}
-        <div class="input-item">
-          <input class="input" type="checkbox" id="input-{{id}}"/>
-          <label for="input-{{id}}"></label>
-          <div class="item" id="item-{{id}}">
-            <span style="color:red">{{credits}} CP</span> · 
-            <span>{{abbr}} · {{title}}</span>
-            <small>{{short_owner}} · {{#clean_time}}{{count}}x {{day}}, {{/clean_time}}</small>
-          </div>
-        </div>
-        {{/value}}
-        {{/value}}
-        </div>
-        {{/categories}}
-      </div>
+      <div id=main></div>
 
       <div id=fishy-times>
         <br/><br/>
@@ -310,7 +285,7 @@ if __name__ == "__main__":
           <div class="time-minute">
             {{#value}}
             <span class="{{marked}}" title="{{title}} · {{category}}"
-                  style=text-decoration:underline>{{abbr}}</span> 
+                  style=text-decoration:underline>{{title_short}}</span> 
             {{/value}}
           </div>
           {{/value}}
@@ -339,7 +314,6 @@ var data = {{{js_data}}};
         "title": title,
         "today": today,
         "path": path,
-        "categories": categories,
         "js_code": js_code,
         "js_data": js_data,
         "css_style": css_style,
