@@ -1,25 +1,50 @@
-body {font: 18px/1.4 'EB Garamond', Garamond, Georgia, Roboto, sans-serif;}
+body {font:18px/1.4 'EB Garamond', Garamond, Georgia, Roboto, sans-serif;}
 body {margin:auto; max-width:40em; padding:1em; padding-top:1em;}
 .hidden {display:none}
 
-button {background:linear-gradient(#eee, #ccc); color:black; border:1px solid #ccc; padding:.5em;border-radius: 5px;}
-h1 {font-size: 2em;}
-small {color: #888; font-size:.9em; line-height:1em;}
+button {background:linear-gradient(#eee, #ccc); color:black; border:1px solid #ccc; padding:.5em;border-radius:5px;}
+h1 {font-size:2em;}
+small {color:#888; font-size:.9em; line-height:1em;}
 
-.course {padding:.5em; margin:.5em 0; /* margin-left:3.5em; */
-  background:#eee; border:1px solid white;}
+.inline-label {background:#eee; padding:.75em; margin:.25em;}
+
+.details {overflow-y:scroll; height:0px; transition:.2s; font-size:.8em; padding: 0 4em;}
+.details.active {display:block; height:300px}
+
+.toggler-show {float:right; width:2.9rem; font-weight:bold; font-size:1.5em;
+  vertical-align:middle; padding:0.2rem 0; text-align:center; color:#bbb; transition:.25s}
+.toggler-show:after {content: "V"}
+input.toggler {display:none}
+label.toggler {display:block; border-top:1px solid #aaa}
+label.toggler b {padding:.5em; padding-bottom:0; display:block}
+label.toggler:hover {cursor:pointer}
+label.toggler:hover  .toggler-show {color:black}
+
+.course-wrapper {position:relative; background:#eee; margin:.2em 0;}
+input[type="checkbox"] {position:absolute; top:0; bottom:0; margin:auto; left:1rem; z-index:1;}
+.checked {background:#9b0}
+.removed {opacity: .2}
+.checked label.remover {display:none}
+.toggled .toggler-show {transform:rotate(.25turn)}
+.toggled > :not(:nth-child(2)) {display:none}
+.course-wrapper label {width:3rem; top:0; bottom:0; position:absolute}
+
+.course {padding:.5em; margin-left:3em;
+  border:1px solid transparent; display:inline-block;
+  width:calc(100% - 1em - 3em - 3em)}
 .course:hover {border:1px solid black; cursor:pointer;}
 .course.active {border:1px solid black;}
-.course > span {display:inline-block;overflow:hidden;vertical-align:top;text-overflow:ellipsis;white-space:nowrap}
+.course > span {display:inline-block; overflow:hidden; vertical-align:top;
+  text-overflow:ellipsis; white-space:nowrap}
 clear {clear:both; display:block}
 
-.item-not-marked {background: silver}
-.item-not-marked.orange-color {color: silver}
-.item-marked {background: orange}
-.item-marked.orange-color {color: orange}
+input.remover {display:none}
+label.remover {display:inline-block; text-align:center; width:2.9rem; font-weight:bold;
+  color:#bbb; font-size:1.5em; vertical-align:middle; padding:0.2rem 0;}
+label.remover:hover {cursor:pointer; color:black;}
 
-.input-item {position:relative;}
-input[type="checkbox"] {position:absolute; top:0; bottom:0; margin:auto; left:1rem; z-index: 1;}
-input[type="checkbox"]:checked + label {background:#9b0}
-.input-item label {width:3rem; top:0; bottom:0; position:absolute}
+.item-not-marked {background:silver}
+.item-not-marked.orange-color {color:silver}
+.item-marked {background:orange}
+.item-marked.orange-color {color:orange}
 

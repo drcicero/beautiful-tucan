@@ -170,14 +170,15 @@ def pipe(init, *args):  # destroys typing info :/ , should better be a macro
 
 if __name__ == "__main__":
     import sys
-    if len(sys.argv) != 3:
+    if len(sys.argv) != 4:
         print("invalid command:", " ".join(sys.argv))
         print("usage:          ", " ".join([sys.argv[0], "INPUT.json", "TITLE"]))
-        print("example:        ", " ".join([sys.argv[0], "ws1718-msc.json", "'TUDA VV MSc Informatik PO2015 WiSe 17/18'"]))
+        print("example:        ", " ".join([sys.argv[0], "python3 vv_flatten.py 2017-11-07-ws1718-bsc.json 'WS17/18 · BSc Informatik PO09' 'Liste der Kurse im Wintersemester 2017/2018 für Studierende im Studiengang 'Bachelor of Science Informatik' an der TU Darmstadt in der Prüfungsordnung von 2009' > ~/Downloads/tucan-bsc-1718.html"]))
         sys.exit()
 
     path  = sys.argv[1]
     title = sys.argv[2]
+    title_long = sys.argv[3]
 
     data = utils.json_read(path)
     data = list(map(adapt, flatten(data)))
@@ -225,8 +226,8 @@ if __name__ == "__main__":
       <div id="details-blabla" class="details active">
         <h1>PO Master 2015</h1>
         Fachprüfungen (45 - 54 CP):<br>
-        + aus 3 oder 4 der 6 Schwerpunkte des Fachbereichs Informatik,
-        wobei in jedem gewählten Schwerpunkt mind. 6 CP erbracht werden müssen.<br>
+        + 3 oder 4 der 6 Schwerpunkte, wobei in jedem gewählten Schwerpunkt
+          mind. 6 CP erbracht werden müssen.<br>
         <br>
         Studienleistungen (12 - 21 CP):<br>
         + Praktikum in der Lehre (max 1)<br>
@@ -234,32 +235,18 @@ if __name__ == "__main__":
         + Praktika, Projektpraktika und ähnliche Veranstaltungen (min 1)<br>
         + Außerdem ist eine Studienarbeit mit flexibler CP Anzahl möglich, wenn man ein Thema und einen Betreuer findet.<br>
         <br>
-        Nebenfach (24 CP): (Nebenfach-Kurse werden hier nicht aufgezählt.)<br>
+        Nebenfach (24 CP): (Nebenfach-Kurse werden hier nicht leider aufgezählt.)<br>
       </div>
       -->
         <!-- <small>Bedenken Sie, Es ist einfacher am Anfang zu viele Kurse zu wählen und
-        dann spöter uninteressante Kurse aufzugeben, als zu wenige Kurse zu
+        dann später uninteressante Kurse aufzugeben, als zu wenige Kurse zu
         wählen, und dann später weitere Kurse nachholen zu müssen.</small> --> 
-
-      {{#categories}}
-      {{#value}}
-      {{#value}}
-      <div id="details-{{id}}" class="details">
-        <h1>{{title}}</h1>
-        {{{first_to_last}}}
-        {{#clean_time}}<i>× {{count}} mal {{day}}, {{start}}-{{end}} in {{room}}</i><br>{{/clean_time}}
-        {{#details}}
-          <p><b>{{title}}</b><br>{{{details}}}</p>
-        {{/details}}
-      </div>
-      {{/value}}
-      {{/value}}
-      {{/categories}}
     </div>
 
     <div>
       <div>
-        <h1>{{title}}</h1>
+        <h1 style=margin-bottom:0>{{title}}</h1>
+        <h2 style=font-size:1em;font-weight:normal;font-style:oblique;margin-top:-.5em>{{title_long}}</h2>
         <b>Benutzung auf eigene Gefahr!</b> Dies ist eine inoffizielle Seite.
         Es könnte sein, dass bspw. ein Kurs in nicht existiert ist oder
         eine andere Anzahl an CP bringt, die Räume geändert wurden, etc.
@@ -274,6 +261,15 @@ if __name__ == "__main__":
       <input type="radio" name="fishy" value="0" id="input-times"> Times
       -->
 
+      Show: 
+      <label class=inline-label for=show-selected
+        ><input type="radio" name="fishy" value="0" id="show-selected" checked>
+        Only selected courses</label>
+      <label class=inline-label for=show-courses
+        ><input type="radio" name="fishy" value="1" id="show-courses">
+        Courses</label>
+
+      <noscript>Please, activate JavaScript to use this list. Thank you. :)</noscript>
       <div id=main></div>
 
       <div id=fishy-times>
@@ -312,8 +308,10 @@ var data = {{{js_data}}};
 
   """, {
         "title": title,
-        "today": today,
+        "title_long": title_long,
         "path": path,
+
+        "today": today,
         "js_code": js_code,
         "js_data": js_data,
         "css_style": css_style,
