@@ -1,4 +1,4 @@
-body {font:18px/1.4 'EB Garamond', Garamond, Georgia, Roboto, sans-serif;}
+body {font:18px/1.4 /*'EB Garamond', Garamond, Georgia, */ Roboto, sans-serif;}
 body {margin:auto; max-width:40em; padding:1em; padding-top:1em;}
 .hidden {display:none}
 
@@ -22,9 +22,8 @@ label.toggler:hover  .toggler-show {color:black}
 
 .course-wrapper {position:relative; background:#eee; margin:.2em 0;}
 input[type="checkbox"] {position:absolute; top:0; bottom:0; margin:auto; left:1rem; z-index:1;}
-.checked {background:#9b0}
-.removed {opacity: .2}
-.checked label.remover {display:none}
+.checked {background:#9b0} .removed {opacity: .2}
+.checked .remover, .removed .checker {display:none}
 .toggled .toggler-show {transform:rotate(.25turn)}
 .toggled > :not(:nth-child(2)) {display:none}
 .course-wrapper label {width:3rem; top:0; bottom:0; position:absolute}
