@@ -1,4 +1,3 @@
-# coding=utf-8
 import collections, itertools, json, datetime, locale, utils, re
 import typing as t
 
@@ -6,24 +5,6 @@ import bs4, pystache
 from bs4.element import Tag as Bs4Tag
 
 locale.setlocale(locale.LC_TIME, "de_DE.UTF-8") # german month names
-
-def from_stream(tuples: t.Iterator[t.Tuple]) -> t.Dict[t.Any, t.Any]:
-    """
-    Creates a nested dictionary structure, where the tuples are the path
-    into the structure, and the last tuple element is the value.
-    each tuple must have at least 2 components.
-    example: [(1,'a'), (1,'b'), (2,3,4,'c')] --> {1:['a','b'],2:{3:{4:'c'}}}
-    """
-    result = collections.OrderedDict()
-    for t in tuples:
-        thing = result
-        for k in t[:-2]:
-            if k not in thing: thing[k] = collections.OrderedDict()
-            thing = thing[k]
-        if len(t) >= 2 and t[-2] not in thing: thing[t[-2]] = []
-        thing[t[-2]].append(t[-1])
-    return result
-
 
 def flatten(it, path: t.Tuple[str, ...] = ()) -> t.Iterable[t.Dict[str, t.Any]]:
     for k, v in enumerate(it):
@@ -38,7 +19,11 @@ def flatten(it, path: t.Tuple[str, ...] = ()) -> t.Iterable[t.Dict[str, t.Any]]:
 
 def get_time(day: Bs4Tag, start: Bs4Tag, end: Bs4Tag, room: Bs4Tag
              ) -> t.Tuple[int, t.Tuple[int, int], t.Tuple[int, int], str, str]:
-    return utils.day_to_num[day.text[:2]], utils.parse_hm(start.text), utils.parse_hm(end.text), room.get_text(strip=True), day.text[4:]
+    return (utils.day_to_num[day.text[:2]],
+            utils.parse_hm(start.text),
+            utils.parse_hm(end.text),
+            room.get_text(strip=True),
+            day.text[4:])
 
 
 def clean(entry: t.Dict[str, t.Any]) -> t.Dict[str, str]:
@@ -54,23 +39,27 @@ def clean(entry: t.Dict[str, t.Any]) -> t.Dict[str, str]:
             for detail in entry["details"] if detail["title"] == "Kurstermine"
             for event in bs4.BeautifulSoup(detail["details"], "lxml").find_all("tr")[1:]
         ]
-        sorted_dates = sorted(datetime.datetime.strptime(i[-1].replace(".", ""), "%d %b %Y")
-                              for i in events)
-        first_to_last = "Termine liegen von %s bis %s:<br>" % (
-            sorted_dates[ 0].strftime("%d. %b"),
-            sorted_dates[-1].strftime("%d. %b"),
-        ) if len(sorted_dates) > 0 else ""
+        sorted_dates = list(sorted(datetime.datetime.strptime(i[-1].replace(".", ""), "%d %b %Y")
+                                   for i in events))
+        first = last = first_to_last = ""
+        if len(sorted_dates) > 0:
+          first = sorted_dates[ 0].strftime("%Y-%m-%d")
+          last  = sorted_dates[-1].strftime("%Y-%m-%d")
+          first_to_last = "Termine liegen von %s bis %s:<br>" % (
+              sorted_dates[ 0].strftime("%d. %b"),
+              sorted_dates[-1].strftime("%d. %b"),
+          )
         weekly = [{"count": v, "time": k,
                    "start": utils.fmt_hm(*k[1]), "end": utils.fmt_hm(*k[2]),
-                   "room": k[3], "day": utils.num_to_day[k[0]]}
+                   "room": k[3], "day_nr": k[0], "day": utils.num_to_day[k[0]]}
                   for k, v in collections.Counter(i[:-1] for i in events).items()
                   if v > 1]
         weekly.sort(key=lambda a: (-a["count"], a["time"][0]))
-        return first_to_last, weekly
+        return first_to_last, weekly, first, last
 
 
     def get_abbr(title):
-      # choose one of three abbreviations
+      # choose the best one of three abbreviations
       abbr1 = "".join(i for i in title if i.isupper() or i.isnumeric())
       abbr2 = "".join(i[0] if len(i)>0 else "" for i in title.strip().split(" "))
       abbr3 = get_first("Anzeige im Stundenplan").get("details", "").strip()
@@ -103,7 +92,7 @@ def clean(entry: t.Dict[str, t.Any]) -> t.Dict[str, str]:
         ("Wahlpflichtbereich \| Wahlpflichtbereich B", "Wahl-B"),
         ("Projekte, Projektpraktika und ähnliche Veranstaltungen", "Praktika"),
         (" \| [^ ]* Prüfungsleistungen", ""),
-        (" \| [^|]* \| ([ABCDEFGHJIKLMNOPQRSTUVWXYZ]*) Studienleistungen \| \\1 (.*)$", " | \\2 /// \\1 "),
+        (" \| [^|]* \| ([A-Z]*) Studienleistungen \| \\1 (.*)$", " | \\2 /// \\1 "),
         # PO 2015
         ("Pflichtbereich", "BSc Pflicht"),
         ("Wahlbereich \| Studienleistungen", "BSc Wahl"),
@@ -151,16 +140,17 @@ def clean(entry: t.Dict[str, t.Any]) -> t.Dict[str, str]:
             detail["details"] += "<br>"
 
     # summarize weekly recurring dates; get last name of owner
-    first_to_last, weekly = clean_time(entry)
+    first_to_last, weekly, first, last = clean_time(entry)
     owner = get_first("Modulverantwortliche").get("details")
     short_owner = "; ".join(i.split()[-1] for i in owner.split("; "))
 
     result = {
         **entry,
-        "id": course_id,
-        "weekly": weekly,               "first_to_last": first_to_last,
-        "title": title,                 "title_short": abbr,
-        "owner": owner,                 "owner_short": short_owner,
+        "id": course_id.replace("/", "-"),
+        "weekly": weekly, "first_to_last": first_to_last,
+        "first": first, "last": last,
+        "title": title, "title_short": abbr,
+        "owner": owner, "owner_short": short_owner,
         "category": category,
         "credits": str(entry["credits"]).zfill(2),
     }
@@ -173,13 +163,14 @@ def clean(entry: t.Dict[str, t.Any]) -> t.Dict[str, str]:
 #         )) if isinstance(i, dict) else i
 
 
-AllocationDict = t.Dict[t.Tuple[int, int], t.Set[int]]
-def allocate(grid: AllocationDict, day: int, min_t: int, max_t: int) -> int:
-    """ add a unused number to the cells (day, min_t) to (day, mint_t + dt) of grid, and return it. """
-    for id in itertools.count():
-        if all(id not in grid[(day, t)] for t in range(min_t, max_t)):
-            for t in range(min_t, max_t): grid[(day, t)].add(id)
-            return id
+#AllocationDict = t.Dict[t.Tuple[int, int], t.Set[int]]
+#def allocate(grid: AllocationDict, event, day: int, min_t: int, max_t: int) -> int:
+#    """ add a unused number to the cells (day, min_t) to (day, mint_t + dt) of grid, and return it. """
+#    for id in itertools.count():
+#        if all(id not in grid[str(day)+"-"+str(t)] for t in range(min_t, max_t)):
+#            for t in range(min_t, max_t):
+#                grid[str(day)+"-"+str(t)][id] = event
+#            return id
 
 
 def pipe(init, *args):  # destroys typing info :/ , should better be a macro
@@ -209,21 +200,21 @@ if __name__ == "__main__":
             and "Fachübergreifend" not in entry["category"]]
 
     # sort inside categoryies by credits
-    data = from_stream([(item["category"], item) for item in data])
+    data = utils.from_stream([(item["category"], item) for item in data])
     for i in data: data[i].sort(key=lambda x:(x["credits"], x["owner_short"]), reverse=True)
     data = [course for _,category in data.items() for course in category]
 
     #import pprint; pprint.pprint([(i["category"], i["title"]) for i in data])
 
-    # allocate courses into weekly calendar
-    grid = collections.defaultdict(lambda: set())
-    for entry in data:
-        for event in entry["weekly"]:
-            if event["count"] <= 1: continue # remove singular events
-            day, (h, m), (h2, m2), _ = event["time"]
-            entry["allocated"] = allocate(grid, day, int(h * 6 + m / 10), int(h2 * 6 + m2 / 10))
+#    # allocate courses into weekly calendar
+#    grid = collections.defaultdict(lambda: dict())
+#    for entry in data:
+#        for event in entry["weekly"]:
+#            if event["count"] <= 1: continue # remove singular events
+#            day, (h, m), (h2, m2), _ = event["time"]
+#            entry["allocated"] = allocate(grid, entry,
+#                day, int(h * 6 + m / 10), int(h2 * 6 + m2 / 10))
 
-    with open("code.js") as f: js_code = f.read()
     with open("style.css") as f: css_style = f.read()
     js_data = json.dumps(data, indent=" ")
 
@@ -231,23 +222,6 @@ if __name__ == "__main__":
 
 #      <!--
 #      <div id="details-blabla" class="details active">
-#        <h1>PO Master 2015</h1>
-#        Fachprüfungen (45 - 54 CP):<br>
-#        + 3 oder 4 der 6 Schwerpunkte, wobei in jedem gewählten Schwerpunkt
-#          mind. 6 CP erbracht werden müssen.<br>
-#        <br>
-#        Studienleistungen (12 - 21 CP):<br>
-#        + Praktikum in der Lehre (max 1)<br>
-#        + Seminare (min 1, max 2)<br>
-#        + Praktika, Projektpraktika und ähnliche Veranstaltungen (min 1)<br>
-#        + Außerdem ist eine Studienarbeit mit flexibler CP Anzahl möglich, wenn man ein Thema und einen Betreuer findet.<br>
-#        <br>
-#        Nebenfach (24 CP): (Nebenfach-Kurse werden hier nicht leider aufgezählt.)<br>
-#      </div>
-#      -->
-#        <!-- <small>Bedenken Sie, Es ist einfacher am Anfang zu viele Kurse zu wählen und
-#        dann später uninteressante Kurse aufzugeben, als zu wenige Kurse zu
-#        wählen, und dann später weitere Kurse nachholen zu müssen.</small> --> 
 
 #      <!--
 #      <input type="radio" name="fishy" value="1" id="input-categories" checked> Categories<br>
@@ -292,25 +266,20 @@ if __name__ == "__main__":
   </head><body>
 
     <div>
-      <div>
-        <h1 style=margin-bottom:0>{{title}}</h1>
-        <h2 style=font-size:1em;font-weight:normal;font-style:oblique;margin-top:-.5em
-          >{{title_long}}</h2>
-        <b>Benutzung auf eigene Gefahr!</b> Dies ist eine inoffizielle Seite.
-        Es könnte sein, dass bspw. ein Kurs in nicht existiert ist oder
-        eine andere Anzahl an CP bringt, die Räume geändert wurden, etc.
-        Zuletzt aktualisiert: {{today}}, Daten aus {{path}}.<br/><br/>
-        Es wird empfohlen jedes Semester durchschnittlich 30 CP zu machen.<br/>
-      </div>
-      <br/>
-
-      <noscript>Please, activate JavaScript to use this list. Thank you. :)</noscript>
-      <div id=main></div>
+      <h1 style=margin-bottom:0>{{title}}</h1>
+      <h2 style=font-size:1em;font-weight:normal;font-style:oblique;margin-top:-.5em
+        >{{title_long}}</h2>
+      <b>Benutzung auf eigene Gefahr!</b> Dies ist eine inoffizielle Seite.
+      Es könnte sein, dass bspw. ein Kurs in nicht existiert ist oder
+      eine andere Anzahl an CP bringt, die Räume geändert wurden, etc.
+      Zuletzt aktualisiert: {{today}}, Daten aus {{path}}.
     </div>
+    <br/>
+    <noscript>Please, activate JavaScript to use this list. Thank you. :)</noscript>
+    <div id=main></div>
+    <div id=main2></div>
 
-    <script>
-{{{js_code}}};
-    </script>
+    <script src="code.js"></script>
 
     <script>
 /* -------------------------------------------------------------------------- */
@@ -324,7 +293,12 @@ window.data = {{{js_data}}};
         "path": path,
 
         "today": today,
-        "js_code": js_code,
         "js_data": js_data,
+#        "js_grid": {k:v for k,v in grid.items()},
         "css_style": css_style,
     }))
+
+#window.grid = {{{js_grid}}};
+#      <input id=search_input value=Search />
+
+

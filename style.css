@@ -8,11 +8,11 @@ small {color:#888; font-size:.9em; line-height:1em;}
 
 .inline-label {background:#eee; padding:.75em; margin:.25em;}
 
-.details {overflow-y:scroll; height:0px; transition:.2s; font-size:.8em; padding: 0 4em;}
-.details.active {display:block; height:300px}
+.details {overflow-y:scroll; height:0px; transition:height .2s; font-size:.8em; padding:0 4em; visibility:hidden;}
+.details.active {display:block; height:300px; visibility: visible}
 
 .toggler-show {float:right; width:2.9rem; font-weight:bold; font-size:1.5em;
-  vertical-align:middle; padding:0.2rem 0; text-align:center; color:#bbb; transition:.25s}
+  vertical-align:middle; padding:0.2rem 0; text-align:center; color:#bbb; transition: .25s}
 .toggler-show:after {content: "V"}
 input.toggler {display:none}
 label.toggler {display:block; border-top:1px solid #aaa}
@@ -47,3 +47,12 @@ label.remover:hover {cursor:pointer; color:black;}
 .item-marked {background:orange}
 .item-marked.orange-color {color:orange}
 
+#main2 .box-b {padding-left:4px; overflow:hidden; /*border-left: 1px solid black; border-top: 1px solid black*/}
+#main2 .box-c {background:#ddd;height:1px;position:absolute}
+
+@media (min-width: 800px) {
+  body {max-width:80em}
+  body > :first-child {width:50%}
+  #main, #main2 {width:50%; box-sizing:border-box; padding: 1em;}
+  #main2 {position: fixed; top:0; right:0; height: 100vh; overflow-y:scroll; padding:3em 1em}
+}
