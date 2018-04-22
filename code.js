@@ -14,7 +14,7 @@ var $  = x => Array.from(document.querySelectorAll(x));
 var $$ = x => document.querySelector(x);
 var noCommonElement = (x,y) => x.filter(e => y.includes(e)).length == 0;
 var delClass = c => e => e.classList.remove(c);
-//var addClass = c => e => e.classList.add(c);
+var addClass = c => e => e.classList.add(c);
 //var copy = it => JSON.parse(JSON.stringify(it));
 
 var colors = ["#dc4444", "#9066d9", "#03A9F4", "#439646", "#FFEB3B", "#FF5722",
@@ -23,25 +23,28 @@ var colors = ["#dc4444", "#9066d9", "#03A9F4", "#439646", "#FFEB3B", "#FF5722",
 
 // do grid[t].push(id) for min_t<t<max_t where a number 'id' that is not yet
 // inside any grid[t]; and return the id.
-var allocate = (grid, entry, min_t, max_t) => {
-  for (var id=0; id<20; id++) {
-    var ok = true;
-    for (var t=min_t; t<max_t; t++) ok = ok && !(t+"-"+id in grid);
-    if (ok) break;
-  }
-
-  for (var t=min_t; t<max_t; t++) grid[t+"-"+id] = entry;
-
+function allocate(grid, min_t, max_t) {
+  var id = find_id(grid, min_t, max_t);
   for (var t=min_t; t<max_t; t++) {
     if (!(t in grid)) grid[t] = [];
     grid[t].push(id)
   }
-
   return id;
 }
 
+function find_id(grid, min_t, max_t) {
+  for (var id=0; id<20; id++) {
+    var ok = true;
+    for (var t=min_t; t<max_t; t++)
+      ok = ok && (grid[t]||[]).indexOf(id)===-1;
+    if (ok) break;
+  }
+  return id;
+}
+
+
 // use localStorage
-var saveState = function() {
+function saveState() {
   if (hasLocalStorage) localStorage.checked =
     JSON.stringify($("input").map(x => [x.id, x.checked]))
 
@@ -49,50 +52,46 @@ var saveState = function() {
     .filter(elem   => elem.checked)
     .map   (elem   => course_by_id[elem.id.substring(elem.id.indexOf("-")+1)]);
 
-  var first = new Date(selected
-    .map   (course => +new Date(course.first))
-    .filter(x      => x)
-    .reduce((x,y)  => Math.min(x, y)));
+  var termine = "";
+  if (selected.length > 0) {
+    var first = new Date(selected
+      .map   (course => +new Date(course.first))
+      .filter(x      => x)
+      .reduce((x,y)  => Math.min(x, y)));
 
-  var last = new Date(selected
-    .map   (course => +new Date(course.last))
-    .filter(x      => x)
-    .reduce((x,y)  => Math.max(x, y)));
+    var last = new Date(selected
+      .map   (course => +new Date(course.last))
+      .filter(x      => x)
+      .reduce((x,y)  => Math.max(x, y)));
 
-  var selectedweekly = selected
-//    .filter(x => x.weekly.length>0)
-    .map(x => x.weekly.map(y =>
-      y.day_nr + "* " + y.day +" "+ y.start +" - "+ y.end +" "+ x.title_short +" ("+ y.room +"), insgesamt " + y.count + " mal" ))
-    .reduce((x,y) => x.concat(y));
+    var selectedweekly = selected
+      //.filter(x => x.weekly.length>0)
+      .map(x =>
+          x.weekly.map(y =>
+              y.time[0] + "" + y.count+ "x " + y.day +" "+ y.start +" - "+ y.end +" "+
+              x.title_short +" ("+ y.room +")" ))
+          .reduce((x,y) => x.concat(y))
+      .sort()
+      .map( x => x.substring(1) );
 
-  selectedweekly.sort();
-  selectedweekly = selectedweekly.map( x => x.substring(1) );
+    termine = (""
+      + "Termine liegen zwischen "
+      + first.getDate() +"."+ first.getMonth() +"."+ first.getFullYear()
+      + " und "
+      + last.getDate() +"."+ last.getMonth() +"."+ last.getFullYear()
+      + ":<br/>"
+      + selectedweekly.join("<br/>")
+      + "<br/>"
+      + "<br/>"
+    );
+  }
 
-  var events = selected
-    .map   (x => x.weekly.map(y => ({
-      id:    x.title_short,
-      start: y.time[0] * 24*60 + y.time[1][0] * 60 + y.time[1][1],
-      end:   y.time[0] * 24*60 + y.time[2][0] * 60 + y.time[2][1],
-      time:  y.time,
-      count: y.count,
-    })))
-    .reduce((x,y)=>x.concat(y))
-    .filter (x => x.count>1);
-  events.sort((x,y) => ((y.end-y.start) - (x.end-x.start))*(5*24*60) + x.start-y.start);
-  var times = events
-    .map   (event => [event.start, event.end])
-    .reduce((x,y) => x.concat(y));
-  times = [...new Set(times)];
-  times.sort((x,y) => x-y);
-  events.forEach(event => {
-    event.start = times.indexOf(event.start);
-    event.end   = times.indexOf(event.end);
-  });
+  var events = pre_events.filter(x => selected.some(y => y.id == x.id));
   var assoc = new Map();
   var grid = {};
   events.forEach(event =>
-    assoc.set(event.time, allocate(grid, event.id, event.start, event.end)));
-
+    assoc.set(event.time, allocate(grid, event.start, event.end))
+  );
   var found = {size:Math.max.apply(Math, [0, ...(grid[0]||[])])};
   var subblock = [found];
   for (var t=1; t<times.length; t++) {
@@ -110,15 +109,15 @@ var saveState = function() {
     + "Du hast "
     + selected
       .map   (course => parseInt(course.credits))
-      .reduce((x,y) => x+y)
+      .reduce((x,y) => x+y, 0)
     +" CP in folgenden Kursen ausgewählt:<br>"
-    + selected.map   (course => course.title_short).join(", ") + "."
+    + selected.map   (course => course.title_short).join(", ")
     + "<br><br>"
 
     + "Wochen-Kalender:"
     + "<table style=width:100%><td style=width:20%>Mo</td><td style=width:20%>Di</td><td style=width:20%>Mi</td><td style=width:20%>Do</td><td style=width:20%>Fr</td></table>"
 
-    + "<div style='position:relative;background:#eee;width:"+width+"px;height:"+height+"px;font-size:.5em'>"
+    + "<div style='position:relative;background:#eee;width:"+width+"px;height:"+height+"px;font-size:0.8em'>"
     + [0,1,2,3,4].map( d=> [...Array(7).keys()].map( h =>
         "<div class=box-c style="+
         "'width:"+(width/5-10)+"px;top:"+(h*73.33)+"px;left:"+(d*width/5)+"px'></div>"
@@ -132,9 +131,8 @@ var saveState = function() {
       var top    = height/12/60*10 * ((week.time[1][0]-8) * 60 + week.time[1][1])/ 10;
       var h      = height/12/60*10 * ((week.time[2][0]-8) * 60 + week.time[2][1])/ 10 - top;
       var w      = width/5/parallelBlocks - 10;
-      var desc = select.title_short+"<br>"+week.time[1][0]+":"+week.time[1][1]+" - "+week.time[2][0]+":"+week.time[2][1]+"<br>"+week.room;
-      return ("<div class=box-b title='"+desc.replace(/<br>/g, "  ")+"' style='position:absolute;"
-        +"background:"+colors[i%colors.length]+";"
+      var desc = select.title_short + " - " + week.time[1][0]+":"+week.time[1][1]+" - "+week.time[2][0]+":"+week.time[2][1]+"<br>"+week.room;
+      return ("<div class='box-b box-b-" + select.id + " color-" + (data.indexOf(select)%colors.length) + "' title='" + desc.replace(/<br>/g, "  ") + "\n" + select.title + "' style='position:absolute;"
         +"top:"+top+"px;left:"+left+"px;width:"+w+"px;height:"+h+"px'>"
         +desc+"</div>");
     } ).join("\n")).join("\n")
@@ -144,24 +142,46 @@ var saveState = function() {
 //      .map   (course => "* " + course.credits +"CP "+ course.title)
 //      .join("<br/>")
 //    +"<br/><br/>"
-    + "Termine liegen zwischen "
-    + first.getDate() +"."+ first.getMonth() +"."+ first.getFullYear()
-    + " und "
-    + last.getDate() +"."+ last.getMonth() +"."+ last.getFullYear()
-    + ":<br/>"
-    + selectedweekly.join("<br/>")
+  
+    + termine
+    + selected.map(x => x.title_short +": "+ x.title).join("<br/>")
   );
+
+  $(".box-b").forEach(x => {
+    x.onmouseenter = ()=> {
+      $("."+Array.from(x.classList).filter(c=>c.startsWith("box-b-"))[0])
+        .forEach(addClass("highlight-box-b"))
+    }
+    x.onmouseleave = ()=> {
+      $(".highlight-box-b").forEach(delClass("highlight-box-b"));
+    }
+  });
+  $(".box-b:not(.course-wrapper)").forEach(x => {
+    x.onclick = ()=> {
+      var boxbid = Array.from(x.classList).filter(x => x.startsWith('box-b-'))[0]
+      $(".course-wrapper." + boxbid)[0].scrollIntoView();
+    }
+  });
+
+  // deselect all unselectable
+  $(".conflicting").forEach(delClass("conflicting"));
+  pre_events.forEach(entry => {
+    var id = find_id(grid, entry.start, entry.end);
+    var obj = $$(".course-wrapper.box-b-"+entry.id).classList;
+    if (id !== 0) obj.add("conflicting");
+  });
 };
 
 // create div from course
+window.lastSuperCategory = null;
 window.lastCategory = null;
-var courseDiv = (course) => {
+function courseDiv(course) {
   var result = (
-    "<span style=width:3em;color:red>" + course.credits + "CP</span>"
-  + "<span style=width:3em>" + course.title_short + "</span>"
-  + "<span style='width:calc( 100% - 2em - 3em - 5em - 2em )' title='"
+    "<span>" + course.credits + "CP</span>"
+  + "<span>" + course.title_short + "</span>"
+  + "<span title='"
      + course.title + "'>" + course.title + "</span>"
-  + "<span style=width:5em;float:right;color:green title='"
+  + "<span title='"
      + course.owner + "'>" + course.owner_short + "</span>"
   + "<br/>"
   );
@@ -169,7 +189,7 @@ var courseDiv = (course) => {
   var checker = '<input class=checker type="checkbox" id="checker-' + course.id + '"/>'
               + '<label class=checker for="checker-' + course.id + '"></label>';
   var remover = '<input class=remover type="checkbox" id="remover-' + course.id + '"/>'
-              + '<label class=remover for="remover-' + course.id + '">X</label>';
+              + '<label class=remover for="remover-' + course.id + '">❌</label>';
 
   var cat = course.category.replace(' ', '-');
   var category = (lastCategory == course.category ? "" :
@@ -180,18 +200,35 @@ var courseDiv = (course) => {
   );
   window.lastCategory = course.category;
 
-  var details = "";
+//  var cat = course.category.replace(' ', '-');
+//  var category_start_html = ('<div class=category>'
+//    + '<input class=toggler type="checkbox" id="toggler-' + cat + '"/>'
+//    + '<label class=toggler for="toggler-' + cat + '"><div class=toggler-show></div>'
+//    + '<b>' + (course.category[0]=="Y" ? course.category.slice(14) : course.category) + '</b><clear/></label>');
+
+//  var category = (lastSuperCategory == (course.category[0]=="Y") ? (lastCategory == course.category ? "" :
+//      '<br/></div>' + category_start_html
+//  ) :
+//      '<br/></div></div><div class=category>'
+//    + '<input class=toggler type="checkbox" id="toggler-' + (course.category[0]=="Y") + '"/>'
+//    + '<label class=toggler for="toggler-' + (course.category[0]=="Y") + '"><div class=toggler-show></div>'
+//    + '<b>' + course.category[0] + '</b><clear/></label>' + category_start_html );
+//  window.lastSuperCategory = course.category[0]=="Y";
+//  window.lastCategory = course.category;
+
+  var details = "<div class=esc>X</div><div class=prev>&lt;</div><div class=next>&gt;</div>";
   if (course.weekly && course.weekly.length > 0)
     details += "<b>" + course.first_to_last + "</b>"
       + course.weekly.map( x =>
           "* " + x.count +"x "+ x.day +" "+ x.start +" - "+ x.end +" ("+ x.room +")"
         ).join("<br/>")
       + "<br/><br/>";
-  details += course.details.map( x =>
+  details += "<b>Kurse</b><br/>" + course.content.map(x=>x.title).join("<br/>\n")+"<br/><br/>"
+  details += course.details.filter(x=>x.details != "").map( x =>
     "<b>" + x.title + "</b><br/>" + x.details).join("<br/>\n");
 
   return category + (
-    "<div class=course-wrapper>"
+    "<div class='course-wrapper box-b box-b-" + course.id + "'>"
       + checker
       + "<div class=course id='course-" + course.id + "'>" + result + "</div>"
       + remover
@@ -211,9 +248,30 @@ window.onload = function() {
   window.course_by_id = {};
   data.forEach(x => course_by_id[x.id]=x);
 
+  window.pre_events = data
+    .map   (x => x.weekly.map(y => ({
+      id: x.id,  title_short: x.title_short,
+      start: y.time[0] * 24*60 + y.time[1][0] * 60 + y.time[1][1],
+      end:   y.time[0] * 24*60 + y.time[2][0] * 60 + y.time[2][1],
+      time:  y.time,
+      count: y.count,
+    })))
+    .reduce((x,y)=>x.concat(y), [])
+    .filter (x => x.count>1)
+    .sort((x,y) => ((y.end-y.start) - (x.end-x.start))*(5*24*60) + x.start-y.start);
+  window.times = pre_events
+    .map   (event => [event.start, event.end])
+    .reduce((x,y) => x.concat(y), []);
+  times = [...new Set(times)];
+  times.sort((x,y) => x-y);
+  pre_events.forEach(event => {
+    event.start = times.indexOf(event.start);
+    event.end   = times.indexOf(event.end);
+  });
+
   // show courses
   window.lastCategory = null;
-  main.innerHTML = "<div class=category>" + data.map(courseDiv).join("\n") + "</div>";
+  main.innerHTML = "<div class=category><div class=category>" + data.map(courseDiv).join("\n") + "</div></div>";
 
   // load state
   if (hasLocalStorage)
@@ -229,7 +287,7 @@ window.onload = function() {
     x.parentElement.classList.toggle(x.classList[0].replace("er", "ed"));
     saveState();
   });
-  $(".course").map( x => x.onclick = e => {
+  $(".course").forEach( x => x.onclick = e => {
     var id = e.currentTarget.id.substring(e.currentTarget.id.indexOf("-")+1);
     var toggle_on = !x.classList.contains("active");
     $(".active").forEach(delClass("active"));
@@ -237,6 +295,22 @@ window.onload = function() {
       $$("#course-" + id).classList.add("active");
       $$("#details-" + id).classList.add("active");
     }
+  });
+
+  document.onkeyup = (e) => {
+    if      (e.keyCode === 27) $$('.esc') .click();
+    else if (e.keyCode === 37) $$('.prev').click();
+    else if (e.keyCode === 39) $$('.next').click();
+  };
+
+  $(".esc") .forEach(but => but.onclick = () => $(".active").forEach(delClass("active")))
+  $(".prev").forEach(but => but.onclick = () => {
+    var courses = $(".course");
+    courses[courses.findIndex(x => x.classList.contains("active"))-1].click();
+  });
+  $(".next").forEach(but => but.onclick = () => {
+    var courses = $(".course");
+    courses[courses.findIndex(x => x.classList.contains("active"))+1].click();
   });
 
 //  remove_unchecked.onclick = ()=> {
@@ -254,4 +328,5 @@ window.onload = function() {
 //    $(".hidden").forEach(delClass("hidden"));
 //  }
 
+  saveState();
 }

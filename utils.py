@@ -1,8 +1,8 @@
 import json, re, collections
 import typing as t
 
-day_to_num = {"Mo": 0, "Di": 1, "Mi": 2, "Do": 3, "Fr": 4, "Sa": 5, "So": 6}
 num_to_day = ["Mo", "Di", "Mi", "Do", "Fr", "Sa", "So"]
+day_to_num = {day:i for i,day in enumerate(num_to_day)}
 
 def json_read(path: str) -> t.Any:
     with open(path) as f: return json.load(f)
