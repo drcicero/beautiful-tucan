@@ -318,7 +318,7 @@ if __name__ == "__main__":
               <p>Zuletzt aktualisiert: {{today2}}</p>
               <p>
 <h2 style=font-size:1em;font-weight:bold
-><span style=color:red>inoffizielles</span> Vorlesungsverzeichnis TU Darmstadt FB Informatik</h2>
+><span style=color:red>inoffizielles</span> Wochenplaner TU Darmstadt FB Informatik</h2>
 <b>Benutzung auf eigene Gefahr!</b>
 Dies ist eine inoffizielle Seite.
 Beachten Sie, das Übungsgruppentermine nicht aufgeführt werden, sondern nur Termine die in Tucan direkt als Veranstaltungstermin gelistet sind. Manchmal finden Termine auch erst ab der zweiten Woche statt.
