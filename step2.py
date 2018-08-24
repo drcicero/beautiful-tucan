@@ -306,7 +306,7 @@ if __name__ == "__main__":
           <html><head>
             <meta charset=utf8>
             <meta name=viewport content="width=device-width, initial-scale=1.0">
-            <title>{{today4}}, {{regulation}}, inoffizielles Vorlesungsverzeichnis TU Darmstadt FB Informatik</title>
+            <title>{{today4}}, {{regulation}}, inoffizielles Wochenplaner TU Darmstadt FB Informatik</title>
             <style>
         {{{css_style}}}
             </style>
