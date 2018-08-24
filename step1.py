@@ -63,8 +63,12 @@ def main():
     courses3 = [] #json_read_or(prefix+'tucan-FB20.json', lambda: download_tucan_vv_catalogue(cred, ("20",)))
     courses4 = [] #json_read_or(prefix+'tucan-anmeldung.json', lambda: download_tucan_anmeldung(cred))
 
-    module_ids = {module_id for courses in [courses, courses2, courses3, courses4] for course in courses for module_id in course['modules']} | inferno[regulations[0]].keys() | inferno[regulations[1]].keys()
-    modules = json_read_or(prefix+'inferno-modules.json', lambda: download_from_inferno(cred, module_ids))
+    module_ids = ( {module_id for courses in [courses, courses2, courses3, courses4]
+                              for course in courses for module_id in course['modules']}
+                 | inferno[regulations[0]].keys()
+                 | inferno[regulations[1]].keys() )
+    modules = json_read_or(prefix+'inferno-modules.json',
+      lambda: download_from_inferno(cred, module_ids))
     modules = inner_join(courses, modules)
     for regulation in regulations:
         module_part = {k:v for k,v in modules.items() if regulation in str(v['regulations'])}
@@ -205,7 +209,7 @@ def get_tucan_page(browser, title_url, session_key, i, maxi):
     dates   = extract_tucan_dates(page.soup, blame=title)
     details = extract_tucan_module(page.soup)
     modules = extract_tucan_course_modules(page.soup)
-    return merge_dict(details, {'title':title, 'link':url, 'dates':dates, 'modules':modules})
+    return merge_dict(details, {'title':title, 'dates':dates, 'modules':modules}) # 'link':url,
 
 def walk_tucan_list(browser, page):
     limit = int(page.soup.select("#searchCourseListPageNavi a")[-1]['class'][0].split("_", 1)[1])
@@ -234,13 +238,13 @@ def walk_tucan(browser, start_page, limit=None):
                 return link, None
             elif isModule(link):
                 return link, merge_dict(extract_tucan_module(page.soup),
-                  {'modules':[title[:10]], 'title':title, 'link':link})
+                  {'modules':[title[:10]], 'title':title}) # 'link':link
             elif isCourse(link):
                 dates   = extract_tucan_dates(page.soup, blame=title)
                 details = extract_tucan_module(page.soup)
                 modules = extract_tucan_course_modules(page.soup)
                 return link, merge_dict(details,
-                  {'title':title, 'link':link, 'dates':dates, 'modules':modules})
+                  {'title':title, 'dates':dates, 'modules':modules}) # 'link':link,
         p.apply(walk_tucan_, start_page, dict(title='', path=[]))
         return [i for i in p.get().values() if i and 'title' in i]
 

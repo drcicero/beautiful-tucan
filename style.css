@@ -82,6 +82,9 @@ label.remover:hover {cursor:pointer; color:black;}
 .color-15 {background: #FF9800}
 
 
+.esc, .prev, .next {display:none}
+/*
+
 .details {
     transition: none;
     display: block;
@@ -94,8 +97,6 @@ label.remover:hover {cursor:pointer; color:black;}
 .details{display:none}
 .details.active{display:block; height: 100%;}
 
-.esc, .prev, .next {display:none}
-/*
 .esc {top:0; right:0;
     border-radius: 100%;
     width: 2.5em;

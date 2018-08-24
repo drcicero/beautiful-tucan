@@ -227,9 +227,15 @@ def groupby(iterator, key):
 if __name__ == "__main__":
     import sys
 
+    now      = datetime.datetime.today() # datetime.datetime(2018, 8, 11)
+    filedate = now.strftime("%Y-%m-%d")
+    today    = now.strftime("%Y-%m")
+    today2   = now.strftime("%d. %b %Y")
+    today3   = now.strftime("%b %Y")
+
+    fields    = utils.json_read("cache/" + filedate + "-inferno.json")
     #nebenfach = utils.json_read("nebenfach.json")
     #dates     = utils.json_read("cache/18-dates.json")
-    fields    = utils.json_read("cache/18-inferno.json")
     #details   = utils.json_read("cache/18-details.json")
 
 #    back = groupby(((course, major +" · "+ category)
@@ -243,13 +249,8 @@ if __name__ == "__main__":
 
 
     for regulation in ["B.Sc. Informatik (2015)", "M.Sc. Informatik (2015)"]:
-        filedate = datetime.datetime.today().strftime("%Y-%m-%d")
         filename = "".join(c for c in regulation if c.isalnum())
         dates = utils.json_read("cache/" + filedate + "--" + filename + ".json")
-
-        today  = datetime.datetime.today().strftime("%Y-%m")
-        today2 = datetime.datetime.today().strftime("%d. %b %Y")
-        today3 = datetime.datetime.today().strftime("%b %Y")
 
         data = [clean(module_id, module, fields, regulation)
                 for module_id, module in dates.items()]
@@ -310,35 +311,14 @@ if __name__ == "__main__":
               <h1>{{today3}}, {{regulation}}, inoffizielles Vorlesungsverzeichnis TU Darmstadt</h1>
               <h2 style=font-size:1em;font-weight:normal;font-style:oblique
                 >Liste der Kurse ab {{today3}} für Studierende im Studiengang {{regulation}} an der TU Darmstadt.</h2>
+              <p>Zuletzt aktualisiert: {{today2}}</p>
+
               <p>
 <b>Benutzung auf eigene Gefahr!</b>
 Dies ist eine inoffizielle Seite.
 Beachten Sie, das Übungsgruppentermine nicht aufgeführt werden, sondern nur Termine die in Tucan direkt als Veranstaltungstermin gelistet sind. Manchmal finden Termine auch erst ab der zweiten Woche statt.
-Desweiteren kann es sein, dass bspw. ein Kurs in der falschen Kategorie angezeigt wird (wie bspw. 'Mathe 3'), ein Kurs fehlt, oder ein angezeigter Kurs eine andere Anzahl an CP bringt, die Räume geändert wurden, etc.
+Desweiteren kann es sein, dass bspw. ein Kurs in der falschen Kategorie angezeigt wird (wie bspw. 'Mathe 3'), ein Kurs fehlt, oder ein angezeigter Kurs eine andere Anzahl an CP bringt, die Räume geändert wurden, etc. <a href=./index.html>Mehr Informationen</a>
               </p>
-
-              <details>
-                <summary>Mehr Informationen</summary>
-                <p>
-<b>Woher stammen die Daten?</b><br>
-Die Liste der verfügbaren Veranstaltungen und deren Termine werden über das <a href=https://www.tucan.tu-darmstadt.de>Tucan</a> (bei 'Tucan > Vorlesungsverzeichnis > Alle Kurse') gesammelt.
-Danach werden die passenden Credit-Points und die Veranstaltungsdetails über das <a href="http://inferno.dekanat.informatik.tu-darmstadt.de">Inferno Prüfungsplantool</a> nachgeschlagen. 
-Zuletzt aktualisiert: {{today2}}.
-<br><br>
-
-<b>Wie melde ich mich offiziel für eine Veranstaltung an?</b><br>
-Das geht in <a href=https://www.tucan.tu-darmstadt.de>Tucan</a> im Menü unter 'Tucan > Veranstaltungen > Anmelden > ...'.
-Achtung, bei vielen Seminaren, Praktikas, etc. muss man sich zusätzlich per Email anmelden und zu einem in Tucan nicht gelisteten Kick-Off-Treffen kommen.
-Um diese Informationen zu finden, kann es hilfreich sein nach 'LANGER VERANSTALTUNGSNAME tu darmstadt' zu googlen.
-<br><br>
-
-<b>Welche und wie viele Kurse muss ich belegen?</b><br>
-Das ist in der entsprechenden <a href="https://www.informatik.tu-darmstadt.de/de/studierende/studiengaenge/masterstudiengaenge/informatik-master/ordnungen/">Prüfungsordnung</a> geregelt.
-Auch das <a href="http://inferno.dekanat.informatik.tu-darmstadt.de">Prüfungsplantool Inferno</a> kann helfen.
-Einen groben Überblick bekommt man schon auch über die Bilder auf den folgende Seiten: <a href="https://www.tu-darmstadt.de/studieren/abschluesse/bachelor/informatik-bsc.de.jsp">Studienplan Bachelor</a>
-bzw. den <a href="https://www.tu-darmstadt.de/studieren/abschluesse/master/informatik-msc.de.jsp">Studienplan Master</a>,
-dort wird aber nicht die maximal Anzahl Kurs pro Lehrveranstaltungsart im Wahlbereich B genannt.
-                </p>
               </details>
             </div>
             <br/>
