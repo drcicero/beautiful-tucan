@@ -105,7 +105,7 @@ function saveState() {
   var height = 480;
 
   main2.innerHTML = (""
-    + "Für Regelstudienzeit sind durchschnittlich jedes Semester 30 CP vorgesehen.<br>"
+//    + "Für Regelstudienzeit sind durchschnittlich jedes Semester 30 CP vorgesehen.<br>"
     + "Du hast "
     + selected
       .map   (course => parseInt(course.credits))

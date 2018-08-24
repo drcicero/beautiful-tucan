@@ -237,6 +237,7 @@ if __name__ == "__main__":
     today    = now.strftime("%Y-%m")
     today2   = now.strftime("%d. %b %Y")
     today3   = now.strftime("%b %Y")
+    today4   = ("Sommer" if 3 <= now.month < 9 else "Winter") +" "+ now.strftime("%Y")
 
     fields    = utils.json_read("cache/" + filedate + "-inferno.json")
     #nebenfach = utils.json_read("nebenfach.json")
@@ -305,7 +306,7 @@ if __name__ == "__main__":
           <html><head>
             <meta charset=utf8>
             <meta name=viewport content="width=device-width, initial-scale=1.0">
-            <title>{{today3}}, {{regulation}}, inoffizielles Vorlesungsverzeichnis TU Darmstadt</title>
+            <title>{{today4}}, {{regulation}}, inoffizielles Vorlesungsverzeichnis TU Darmstadt FB Informatik</title>
             <style>
         {{{css_style}}}
             </style>
@@ -313,19 +314,18 @@ if __name__ == "__main__":
           </head><body>
 
             <div>
-              <h1>{{today3}}, {{regulation}}, inoffizielles Vorlesungsverzeichnis TU Darmstadt</h1>
-              <h2 style=font-size:1em;font-weight:normal;font-style:oblique
-                >Liste der Kurse ab {{today3}} für Studierende im Studiengang {{regulation}} an der TU Darmstadt.</h2>
+              <h1>{{today4}}, {{regulation}}</h1>
               <p>Zuletzt aktualisiert: {{today2}}</p>
-
               <p>
+<h2 style=font-size:1em;font-weight:bold
+><span style=color:red>inoffizielles</span> Vorlesungsverzeichnis TU Darmstadt FB Informatik</h2>
 <b>Benutzung auf eigene Gefahr!</b>
 Dies ist eine inoffizielle Seite.
 Beachten Sie, das Übungsgruppentermine nicht aufgeführt werden, sondern nur Termine die in Tucan direkt als Veranstaltungstermin gelistet sind. Manchmal finden Termine auch erst ab der zweiten Woche statt.
 Desweiteren kann es sein, dass bspw. ein Kurs in der falschen Kategorie angezeigt wird (wie bspw. 'Mathe 3'), ein Kurs fehlt, oder ein angezeigter Kurs eine andere Anzahl an CP bringt, die Räume geändert wurden, etc.
               </p>
-              <p>Hinweis: Pflichtveranstaltung müssen irgendwann belegt worden sein, aber nicht unbedingt alle gleichzeitig.
-              Für Regelstudienzeit sind durchschnittlich jedes Semester 30 CP vorgesehen.
+              <!--<p>Hinweis: Pflichtveranstaltung müssen irgendwann belegt worden sein, aber nicht unbedingt alle gleichzeitig.
+              Für Regelstudienzeit sind durchschnittlich jedes Semester 30 CP vorgesehen.-->
               <a href=./index.html>Mehr Informationen</a></p>
               </details>
             </div>
@@ -346,7 +346,8 @@ Desweiteren kann es sein, dass bspw. ein Kurs in der falschen Kategorie angezeig
                 "today": today,
                 "today2": today2,
                 "today3": today3,
-                "regulation": regulation,
+                "today4": today4,
+                "regulation": regulation[:-7],
 
                 "today": today,
                 "js_data": js_data,
