@@ -1,33 +1,30 @@
-body {font:14px/1.4 /*'EB Garamond', Garamond, Georgia, */ Roboto, sans-serif;}
+html {font:14px/1.4 /*'EB Garamond', Garamond, Georgia, */ Roboto, sans-serif;}
 body {margin:auto; max-width:40em; padding:1em; padding-top:1em;}
 .hidden {display:none}
-
 button {background:linear-gradient(#eee, #ccc); color:black; border:1px solid #ccc; padding:.5em;border-radius:5px;}
 h1 {font-size:2em;}
 small {color:#888; font-size:.9em; line-height:1em;}
-
 .inline-label {background:#eee; padding:.75em; margin:.25em;}
 
-.details {overflow-y:scroll; height:0px; transition:height .2s; font-size:.8em; padding:0 4em; visibility:hidden;}
-.details.active {display:block; height:300px; visibility: visible}
-
-.toggler-show {float:right; width:2.9rem; font-weight:bold; font-size:1.5em;
+/* details summary */
+summary::-webkit-details-marker {display:none}
+summary {list-style-type:none}
+.details {overflow-y:scroll; height:0px; transition:height .2s; font-size:.8em; padding:0 4em; visibility: hidden}
+[open] > .details {height:300px; visibility: visible}
+summary:hover .toggler-show {color:black}
+.toggler-show {float:right; width:2.9rem; font-weight:bold; font-size:1.2em; transform:rotate(.25turn);
   vertical-align:middle; padding:0.2rem 0; text-align:center; color:#bbb; transition: .25s}
 .toggler-show:after {content: "▼";}
-input.toggler {display:none}
-label.toggler {display:block; border-top:1px solid #aaa}
-label.toggler b {padding:.5em; padding-bottom:0; display:block}
-label.toggler:hover {cursor:pointer}
-label.toggler:hover  .toggler-show {color:black}
+[open] > summary > .toggler-show {transform:rotate(0turn)}
+clear {clear:both; display:block}
+summary {position:relative; cursor:pointer; display:block; border-top:1px solid #aaa}
+summary b {padding:.5em; padding-bottom:0; display:block}
 
-.course-wrapper {position:relative; border: 1px dotted silver; margin:.2em 0;}
 input[type="checkbox"] {position:absolute; top:0; bottom:0; margin:auto; left:.75rem; z-index:1;}
-.course-wrapper:hover {border:1px solid black; cursor:pointer;}
-.conflicting, .removed {background:#eee; opacity:.5} .checked {background:#9b0; opacity:1}
-.checked .remover, .removed .checker {display:none}
-.toggled .toggler-show {transform:rotate(.25turn)}
-.toggled > :not(:nth-child(2)) {display:none}
-.course-wrapper label {width:2rem; top:0; bottom:0; position:absolute}
+.course-wrapper > summary {position:relative; border: 1px dotted silver; margin:.2em 0;}
+.course-wrapper > summary:hover {border:1px solid black; cursor:pointer;}
+.conflicting {background:#eee; opacity:.5}
+.checked {background:#9b0; opacity:1}
 
 .course {padding:.5em; margin-left:2em; display:inline-block;
   width:calc(100% - 1em - 3em - 3em - .5em)}
@@ -37,12 +34,6 @@ input[type="checkbox"] {position:absolute; top:0; bottom:0; margin:auto; left:.7
 .course > span:nth-child(2) {width:3em}
 .course > span:nth-child(3) {width:calc( 100% - 2em - 3em - 5em - 2em )}
 .course > span:nth-child(4) {width:5em;float:right;color:green}
-clear {clear:both; display:block}
-
-input.remover {display:none}
-label.remover {display:inline-block; text-align:center; width:2.9rem; font-weight:bold;
-  color:#bbb; font-size:1.5em; vertical-align:middle; padding:0.2rem 0;}
-label.remover:hover {cursor:pointer; color:black;}
 
 .item-not-marked {background:silver}
 .item-not-marked.orange-color {color:silver}
@@ -54,8 +45,6 @@ label.remover:hover {cursor:pointer; color:black;}
 .highlight-box-b {box-shadow: 0 0 10px black}
 
 .tb.list tr > td:nth-child(6) {font-size:.5em}
-
-/* .category > :not(:nth-child(2)) {margin-left: 2em} */
 
 @media (min-width: 1100px) {
   body {max-width:80em}
@@ -81,10 +70,9 @@ label.remover:hover {cursor:pointer; color:black;}
 .color-14 {background: #CDDC39}
 .color-15 {background: #FF9800}
 
-
 .esc, .prev, .next {display:none}
-/*
 
+/*
 .details {
     transition: none;
     display: block;
@@ -119,3 +107,4 @@ label.remover:hover {cursor:pointer; color:black;}
     cursor: pointer;
 }
 .esc:hover, .prev:hover, .next:hover { background: #222 }
+/**/

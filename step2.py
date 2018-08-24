@@ -201,12 +201,17 @@ def clean_dates(item):
           sorted_dates[ 0].strftime("%d. %b"),
           sorted_dates[-1].strftime("%d. %b"),
       )
+
     weekly = [{"count": v,
                "time": [utils.day_to_num[k[0]], utils.parse_hm(k[1]), utils.parse_hm(k[2])],
-               "start": k[1], "end": k[2],
-               "room": k[3], "day": k[0]}
-              for k, v in collections.Counter(tuple(i[1:]) for i in dates).items()
+               "day": k[0], "start": k[1], "end": k[2]}
+              for k, v in collections.Counter((i[1],i[2],i[3]) for i in dates).items()
               if v > 1]
+    for d in weekly:
+      roomlst = [room for i in dates
+                      if (i[1], i[2], i[3]) == (d['day'], d['start'], d['end'])
+                      for room in i[4].split(",")]
+      d['room'] = ", ".join(set(roomlst))
     weekly.sort(key=lambda a: (-a["count"], a["time"][0]))
     return {
         "weekly": weekly, "first_to_last": first_to_last,
@@ -317,8 +322,11 @@ if __name__ == "__main__":
 <b>Benutzung auf eigene Gefahr!</b>
 Dies ist eine inoffizielle Seite.
 Beachten Sie, das Übungsgruppentermine nicht aufgeführt werden, sondern nur Termine die in Tucan direkt als Veranstaltungstermin gelistet sind. Manchmal finden Termine auch erst ab der zweiten Woche statt.
-Desweiteren kann es sein, dass bspw. ein Kurs in der falschen Kategorie angezeigt wird (wie bspw. 'Mathe 3'), ein Kurs fehlt, oder ein angezeigter Kurs eine andere Anzahl an CP bringt, die Räume geändert wurden, etc. <a href=./index.html>Mehr Informationen</a>
+Desweiteren kann es sein, dass bspw. ein Kurs in der falschen Kategorie angezeigt wird (wie bspw. 'Mathe 3'), ein Kurs fehlt, oder ein angezeigter Kurs eine andere Anzahl an CP bringt, die Räume geändert wurden, etc.
               </p>
+              <p>Hinweis: Pflichtveranstaltung müssen irgendwann belegt worden sein, aber nicht unbedingt alle gleichzeitig.
+              Für Regelstudienzeit sind durchschnittlich jedes Semester 30 CP vorgesehen.
+              <a href=./index.html>Mehr Informationen</a></p>
               </details>
             </div>
             <br/>

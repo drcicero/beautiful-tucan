@@ -105,7 +105,7 @@ function saveState() {
   var height = 480;
 
   main2.innerHTML = (""
-    + "Es wird empfohlen jedes Semester durchschnittlich 30 CP zu machen.<br>"
+    + "Für Regelstudienzeit sind durchschnittlich jedes Semester 30 CP vorgesehen.<br>"
     + "Du hast "
     + selected
       .map   (course => parseInt(course.credits))
@@ -131,10 +131,11 @@ function saveState() {
       var top    = height/12/60*10 * ((week.time[1][0]-8) * 60 + week.time[1][1])/ 10;
       var h      = height/12/60*10 * ((week.time[2][0]-8) * 60 + week.time[2][1])/ 10 - top;
       var w      = width/5/parallelBlocks - 10;
-      var desc = select.title_short + " - " + week.time[1][0]+":"+week.time[1][1]+" - "+week.time[2][0]+":"+week.time[2][1]+"<br>"+week.room;
-      return ("<div class='box-b box-b-" + select.id + " color-" + (data.indexOf(select)%colors.length) + "' title='" + desc.replace(/<br>/g, "  ") + "\n" + select.title + "' style='position:absolute;"
-        +"top:"+top+"px;left:"+left+"px;width:"+w+"px;height:"+h+"px'>"
-        +desc+"</div>");
+      var desc = select.title_short + " - " + week.time[1][0]+":"+week.time[1][1]+" - "+week.time[2][0]+":"+week.time[2][1]+"<br>"+week.room+"<br>findet "+week.count+" Mal statt";
+      var class_ = " class='box-b box-b-" + select.id + " color-" + (data.indexOf(select)%colors.length) + "'";
+      var title  = " title='" + desc.replace(/<br>/g, "\n") + "\n" + select.title + "'";
+      var style  = " style='position:absolute;top:"+top+"px;left:"+left+"px;width:"+w+"px;height:"+h+"px'";
+      return "<div" + class_ + title + style + ">" + desc + "</div>";
     } ).join("\n")).join("\n")
     + "</div><br>"
 
@@ -147,27 +148,23 @@ function saveState() {
     + selected.map(x => x.title_short +": "+ x.title).join("<br/>")
   );
 
-  $(".box-b").forEach(x => {
-    x.onmouseenter = ()=> {
-      $("."+Array.from(x.classList).filter(c=>c.startsWith("box-b-"))[0])
-        .forEach(addClass("highlight-box-b"))
-    }
-    x.onmouseleave = ()=> {
-      $(".highlight-box-b").forEach(delClass("highlight-box-b"));
-    }
-  });
-  $(".box-b:not(.course-wrapper)").forEach(x => {
-    x.onclick = ()=> {
-      var boxbid = Array.from(x.classList).filter(x => x.startsWith('box-b-'))[0]
-      $(".course-wrapper." + boxbid)[0].scrollIntoView();
-    }
+  $(".box-b").forEach(x => x.onmouseenter = () =>
+    $("."+Array.from(x.classList).filter(c=>c.startsWith("box-b-"))[0])
+      .forEach(addClass("highlight-box-b")));
+  $(".box-b").forEach(x => x.onmouseleave = () =>
+    $(".highlight-box-b")
+      .forEach(delClass("highlight-box-b")));
+
+  $(".box-b:not(summary)").forEach(x => x.onclick = ()=> {
+    var boxbid = Array.from(x.classList).filter(x => x.startsWith('box-b-'))[0]
+    $("summary." + boxbid)[0].scrollIntoView();
   });
 
   // deselect all unselectable
   $(".conflicting").forEach(delClass("conflicting"));
   pre_events.forEach(entry => {
     var id = find_id(grid, entry.start, entry.end);
-    var obj = $$(".course-wrapper.box-b-"+entry.id).classList;
+    var obj = $$("summary.box-b-"+entry.id).classList;
     if (id !== 0) obj.add("conflicting");
   });
 };
@@ -188,15 +185,14 @@ function courseDiv(course) {
 
   var checker = '<input class=checker type="checkbox" id="checker-' + course.id + '"/>'
               + '<label class=checker for="checker-' + course.id + '"></label>';
-  var remover = '<input class=remover type="checkbox" id="remover-' + course.id + '"/>'
-              + '<label class=remover for="remover-' + course.id + '">❌</label>';
+//  var remover = '<input class=remover type="checkbox" id="remover-' + course.id + '"/>'
+//              + '<label class=remover for="remover-' + course.id + '">❌</label>';
 
   var cat = course.category.replace(' ', '-');
   var category = (lastCategory == course.category ? "" :
-      '<br/></div><div class=category>'
-    + '<input class=toggler type="checkbox" id="toggler-' + cat + '"/>'
-    + '<label class=toggler for="toggler-' + cat + '"><div class=toggler-show></div>'
-    + '<b>' + course.category + '</b><clear/></label>'
+      '<br/></details><details class=category open>'
+    + '<summary><div class=toggler-show></div>'
+    + '<b>' + course.category + '</b><clear/></summary>'
   );
   window.lastCategory = course.category;
 
@@ -216,7 +212,7 @@ function courseDiv(course) {
 //  window.lastSuperCategory = course.category[0]=="Y";
 //  window.lastCategory = course.category;
 
-  var details = "<div class=esc>X</div><div class=prev>&lt;</div><div class=next>&gt;</div>";
+  var details = ""; // "<div class=esc>X</div><div class=prev>&lt;</div><div class=next>&gt;</div>";
   if (course.weekly && course.weekly.length > 0)
     details += "<b>" + course.first_to_last + "</b>"
       + course.weekly.map( x =>
@@ -228,14 +224,18 @@ function courseDiv(course) {
     "<b>" + x.title + "</b><br/>" + x.details).join("<br/>\n");
 
   return category + (
-    "<div class='course-wrapper box-b box-b-" + course.id + "'>"
+    "<details class=course-wrapper>"
+      + "<summary class='box-b box-b-" + course.id + "'>"
+      + "<div class=toggler-show></div>"
       + checker
       + "<div class=course id='course-" + course.id + "'>" + result + "</div>"
-      + remover
-  + "</div>"
-  + "<div class=details id='details-" + course.id + "'>"
-    + details
-  + "</div>"
+//      + remover
+      + "<clear></clear>"
+      + "</summary>"
+      + "<div class=details id='details-" + course.id + "'>"
+        + details
+      + "</div>"
+  + "</details>"
   );
 }
 
@@ -271,7 +271,7 @@ window.onload = function() {
 
   // show courses
   window.lastCategory = null;
-  main.innerHTML = "<div class=category><div class=category>" + data.map(courseDiv).join("\n") + "</div></div>";
+  main.innerHTML = "<div><details class='category hidden'>" + data.map(courseDiv).join("\n") + "</details></div>";
 
   // load state
   if (hasLocalStorage)
@@ -283,35 +283,36 @@ window.onload = function() {
     });
 
   // enable toggles
-  $("input.checker, input.remover, input.toggler").forEach( x => x.onclick = function() {
-    x.parentElement.classList.toggle(x.classList[0].replace("er", "ed"));
+  $("input.checker").forEach( x => x.onclick = e => {
+    x.parentElement.classList.toggle("checked");
     saveState();
+    x.parentElement.parentElement.open = !x.parentElement.parentElement.open; // BUG workaround
   });
-  $(".course").forEach( x => x.onclick = e => {
-    var id = e.currentTarget.id.substring(e.currentTarget.id.indexOf("-")+1);
-    var toggle_on = !x.classList.contains("active");
-    $(".active").forEach(delClass("active"));
-    if (toggle_on) {
-      $$("#course-" + id).classList.add("active");
-      $$("#details-" + id).classList.add("active");
-    }
-  });
+  $(".course-wrapper > summary").forEach(x => x.onclick = () =>
+    $(".course-wrapper > summary").forEach(y => x !== y ? y.parentElement.open = false : ""));
 
+  var esc = () => {
+    var courses = $(".course-wrapper > summary");
+    courses[courses.findIndex(x => x.parentElement.open)].click();
+  };
+  var prev = () => {
+    var courses = $(".course-wrapper > summary");
+    courses[courses.findIndex(x => x.parentElement.open)-1].click();
+  };
+  var next = () => {
+    var courses = $(".course-wrapper > summary");
+    courses[courses.findIndex(x => x.parentElement.open)+1].click();
+  };
   document.onkeyup = (e) => {
-    if      (e.keyCode === 27) $$('.esc') .click();
-    else if (e.keyCode === 37) $$('.prev').click();
-    else if (e.keyCode === 39) $$('.next').click();
+    if      (e.keyCode === 27) esc();
+    else if (e.keyCode === 37) prev();
+    else if (e.keyCode === 39) next();
   };
 
-  $(".esc") .forEach(but => but.onclick = () => $(".active").forEach(delClass("active")))
-  $(".prev").forEach(but => but.onclick = () => {
-    var courses = $(".course");
-    courses[courses.findIndex(x => x.classList.contains("active"))-1].click();
-  });
-  $(".next").forEach(but => but.onclick = () => {
-    var courses = $(".course");
-    courses[courses.findIndex(x => x.classList.contains("active"))+1].click();
-  });
+//  $(".esc") .forEach(but => but.onclick = esc))
+//  $(".prev").forEach(but => but.onclick = prev);
+//  $(".next").forEach(but => but.onclick = next);
+
 
 //  remove_unchecked.onclick = ()=> {
 //    $(".hidden").forEach(delClass("hidden"));
@@ -323,6 +324,7 @@ window.onload = function() {
 //      if (y) y.classList.add("hidden");
 //    });
 //  };
+
 
 //  show_all.onclick = function() {
 //    $(".hidden").forEach(delClass("hidden"));
