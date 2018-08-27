@@ -1,20 +1,19 @@
 import json, re, collections
-import typing as t
 
 num_to_day = ["Mo", "Di", "Mi", "Do", "Fr", "Sa", "So"]
 day_to_num = {day:i for i,day in enumerate(num_to_day)}
 
-def json_read(path: str) -> t.Any:
+def json_read(path):
     with open(path) as f: return json.load(f)
 
-def fmt_hm(h: int, m: int) -> str:
+def fmt_hm(h, m):
     return str(h).zfill(2) + ":" + str(m).zfill(2)
 
-def parse_hm(h_m: str) -> t.Tuple[int, int]:
+def parse_hm(h_m):
     h, m = h_m.split(":", 1)
     return int(h), int(m)
 
-def roman_to_latin_numbers(title: str) -> str:
+def roman_to_latin_numbers(title):
     return (title
             .replace(" I ", " 1 ")
             .replace(" II ", " 2 ")
@@ -23,10 +22,10 @@ def roman_to_latin_numbers(title: str) -> str:
             .replace(" V ", " 5 ")
             )
 
-def remove_bracketed_part(title: str) -> str:
+def remove_bracketed_part(title):
     return " ".join(re.match("([^(]*)(?:[(][^)]*[)])?(.*)", title).groups())
 
-def from_stream(tuples: t.Iterator[t.Tuple]) -> t.Dict[t.Any, t.Any]:
+def from_stream(tuples):
     """
     Creates a nested dictionary structure, where the tuples are the path
     into the structure, and the last tuple element is the value.

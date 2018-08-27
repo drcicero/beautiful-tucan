@@ -1,16 +1,21 @@
 import collections, itertools, json, datetime, locale, re
 import utils
-import typing as t
 
 import bs4, pystache
 from bs4.element import Tag as Bs4Tag
 
-locale.setlocale(locale.LC_TIME, "de_DE.UTF-8") # german month names
+#locale.setlocale(locale.LC_TIME, "de_DE.UTF-8") # german month names
 
-def flatten(it, path: t.Tuple[str, ...] = ()) -> t.Iterable[t.Dict[str, t.Any]]:
+def merge_dicts(x, y):
+    """Given two dicts, merge them into a new dict as a shallow copy."""
+    z = x.copy()
+    z.update(y)
+    return z
+
+def flatten(it, path = ()):
     for k, v in enumerate(it):
         if "details" in v:
-            result = {"path": path, **v}
+            result = merge_dicts({"path": path}, v)
             del result["children"]
             # print(path, v["title"])
             yield result
@@ -18,8 +23,7 @@ def flatten(it, path: t.Tuple[str, ...] = ()) -> t.Iterable[t.Dict[str, t.Any]]:
             yield from flatten(v["children"], path + (v["title"],))
 
 
-def get_time(day: Bs4Tag, start: Bs4Tag, end: Bs4Tag, room: Bs4Tag
-             ) -> t.Tuple[int, t.Tuple[int, int], t.Tuple[int, int], str, str]:
+def get_time(day, start, end, room):
     return (utils.day_to_num[day.text[:2]],
             utils.parse_hm(start.text),
             utils.parse_hm(end.text),
@@ -65,7 +69,7 @@ def simplify_path(path):
     return path
 
 
-def clean(module_id: str, entry: t.Dict[str, t.Any], fields, regulation) -> t.Dict[str, str]:
+def clean(module_id, entry, fields, regulation):
     def get_first(title: str, entry=entry):
         tmp = [detail for detail in entry["details"] if detail["title"] == title]
         return tmp[0].get('details') if len(tmp)>0 else None
@@ -161,14 +165,13 @@ def clean(module_id: str, entry: t.Dict[str, t.Any], fields, regulation) -> t.Di
       category = category.replace("Nebenfach", "Fachübergreifend")
 
     dates = clean_dates(item['dates'] for item in entry['content'] if 'dates' in item)
-    result = {
-        **entry, **dates,
+    result = merge_dicts(merge_dicts(entry, dates), {
         "id": module_id,
         "title": title, "title_short": abbr,
         "owner": owner, "owner_short": short_owner,
         "credits": str(entry["credits"]).zfill(2),
         'category': category,
-    }
+    })
 #    del result["path"]
     return result
 
@@ -188,11 +191,15 @@ def clean(module_id: str, entry: t.Dict[str, t.Any], fields, regulation) -> t.Di
 #            return id
 
 import datetime
+def parse_date(i):
+  # translate germany -> english
+  string = i[0].replace(".", "").replace("Mai", "May").replace("Okt", "Oct").replace("Dez", "Dec")
+  return datetime.datetime.strptime(string, "%d %b %Y")
+
 def clean_dates(item):
     dates = [i.split("\t") for lst in item for i in lst]
     # summarize recurring weekly events
-    sorted_dates = list(sorted(datetime.datetime.strptime(i[0].replace(".", ""), "%d %b %Y")
-                               for i in dates))
+    sorted_dates = list(sorted(parse_date(i)for i in dates))
     first = last = first_to_last = ""
     if len(sorted_dates) > 0:
       first = sorted_dates[ 0].strftime("%Y-%m-%d")
@@ -254,7 +261,9 @@ if __name__ == "__main__":
 #    print(json.dumps(fields, indent=2))
 
 
-    for regulation in ["B.Sc. Informatik (2015)", "M.Sc. Informatik (2015)"]:
+    regulations = {"B.Sc. Informatik (2015)": "Bachelor Informatik",
+                   "M.Sc. Informatik (2015)": "Master Informatik"}
+    for regulation, regulation_short in regulations.items():
         filename = "".join(c for c in regulation if c.isalnum())
         dates = utils.json_read("cache/" + filedate + "--" + filename + ".json")
 
@@ -302,52 +311,51 @@ if __name__ == "__main__":
         #today = datetime.datetime.today().strftime("%d. %b. %Y")
         with open("gh-pages/" + today + "-" + filename + ".html", "w") as f:
             f.write(pystache.render("""
-          <!doctype html>
-          <html><head>
-            <meta charset=utf8>
-            <meta name=viewport content="width=device-width, initial-scale=1.0">
-            <title>{{today4}}, {{regulation}}, inoffizieller Wochenplaner TU Darmstadt FB Informatik</title>
-            <style>
-        {{{css_style}}}
-            </style>
+<!doctype html>
+<html><head>
+  <meta charset=utf8>
+  <meta name=viewport content="width=device-width, initial-scale=1.0">
+  <title>{{today4}}, {{regulation_short}}, inoffizieller Wochenplaner TU Darmstadt FB Informatik</title>
+  <style>
+{{{css_style}}}
+  </style>
+</head><body>
 
-          </head><body>
+  <h1>{{today4}} {{regulation_short}}</h1>
+  Zuletzt aktualisiert: {{today2}}<br/>
+  <p>
+    <b>Benutzung auf eigene Gefahr!</b>
+    Dies ist eine inoffizielle Seite, der inoffizielle Wochenplaner TU Darmstadt FB Informatik.
+    Beachten Sie, das Übungsgruppentermine nicht aufgeführt werden, sondern nur Termine die in Tucan direkt als Veranstaltungstermin gelistet sind.
+    <!-- Manchmal finden Termine auch erst ab der zweiten Woche statt. -->
+    Desweiteren kann es sein, dass bspw. ein Kurs in der falschen Kategorie angezeigt wird (wie bspw. 'Mathe 3'),
+    ein Kurs fehlt, oder ein angezeigter Kurs eine andere Anzahl an CP bringt, die Räume geändert wurden, etc.
+    Alle Angaben ohne Gewähr, Ich hoffe sie helfen trotzdem :)
+  </p>
+  <!--<p>Hinweis: Pflichtveranstaltung müssen irgendwann belegt worden sein, aber nicht unbedingt alle gleichzeitig.
+  Für Regelstudienzeit sind durchschnittlich jedes Semester 30 CP vorgesehen.-->
+  <a href=./index.html>Mehr Informationen</a></p>
+  </details>
 
-            <div>
-              <h1>{{today4}}, {{regulation}}</h1>
-              <p>Zuletzt aktualisiert: {{today2}}</p>
-              <p>
-<h2 style=font-size:1em;font-weight:bold
-><span style=color:red>inoffizieller</span> Wochenplaner TU Darmstadt FB Informatik</h2>
-<b>Benutzung auf eigene Gefahr!</b>
-Dies ist eine inoffizielle Seite.
-Beachten Sie, das Übungsgruppentermine nicht aufgeführt werden, sondern nur Termine die in Tucan direkt als Veranstaltungstermin gelistet sind. Manchmal finden Termine auch erst ab der zweiten Woche statt.
-Desweiteren kann es sein, dass bspw. ein Kurs in der falschen Kategorie angezeigt wird (wie bspw. 'Mathe 3'), ein Kurs fehlt, oder ein angezeigter Kurs eine andere Anzahl an CP bringt, die Räume geändert wurden, etc.
-              </p>
-              <!--<p>Hinweis: Pflichtveranstaltung müssen irgendwann belegt worden sein, aber nicht unbedingt alle gleichzeitig.
-              Für Regelstudienzeit sind durchschnittlich jedes Semester 30 CP vorgesehen.-->
-              <a href=./index.html>Mehr Informationen</a></p>
-              </details>
-            </div>
-            <br/>
-            <noscript>Please, activate JavaScript to use this list. Thank you. :)</noscript>
-            <div id=main></div>
-            <div id=main2></div>
+  <br/>
+  <noscript>Please, activate JavaScript to use this list. Thank you. :)</noscript>
+  <div id=main></div>
+  <div id=main2>... Generiere Liste ...</div>
 
-            <script src="code.js"></script>
+  <script src="code.js"></script>
 
-            <script>
-        /* -------------------------------------------------------------------------- */
-        window.data = {{{js_data}}};
-            </script>
-          </body></html>
+  <script>
+/* -------------------------------------------------------------------------- */
+window.data = {{{js_data}}};
+  </script>
+</body></html>
 
           """, {
                 "today": today,
                 "today2": today2,
                 "today3": today3,
                 "today4": today4,
-                "regulation": regulation[:-7],
+                "regulation_short": regulation_short,
 
                 "today": today,
                 "js_data": js_data,

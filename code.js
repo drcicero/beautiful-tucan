@@ -17,9 +17,7 @@ var delClass = c => e => e.classList.remove(c);
 var addClass = c => e => e.classList.add(c);
 //var copy = it => JSON.parse(JSON.stringify(it));
 
-var colors = ["#dc4444", "#9066d9", "#03A9F4", "#439646", "#FFEB3B", "#FF5722",
-              "#E91E63", "#00BCD4", "#8BC34A", "#FFC107", "#795548", "#9C27B0",
-              "#2196F3", "#009688", "#CDDC39", "#FF9800"];
+var colors = [0,1,2,3,4,5,6,7,8,9,10,11,];
 
 // do grid[t].push(id) for min_t<t<max_t where a number 'id' that is not yet
 // inside any grid[t]; and return the id.
@@ -180,13 +178,9 @@ function courseDiv(course) {
      + course.title + "'>" + course.title + "</span>"
   + "<span title='"
      + course.owner + "'>" + course.owner_short + "</span>"
-  + "<br/>"
   );
 
-  var checker = '<input class=checker type="checkbox" id="checker-' + course.id + '"/>'
-              + '<label class=checker for="checker-' + course.id + '"></label>';
-//  var remover = '<input class=remover type="checkbox" id="remover-' + course.id + '"/>'
-//              + '<label class=remover for="remover-' + course.id + '">❌</label>';
+  var checker = '<label><input class=checker type="checkbox" id="checker-' + course.id + '"/></label>'
 
   var cat = course.category.replace(' ', '-');
   var category = (lastCategory == course.category ? "" :
@@ -223,19 +217,17 @@ function courseDiv(course) {
   details += course.details.filter(x=>x.details != "").map( x =>
     "<b>" + x.title + "</b><br/>" + x.details).join("<br/>\n");
 
-  return category + (
-    "<details class=course-wrapper>"
-      + "<summary class='box-b box-b-" + course.id + "'>"
-      + "<div class=toggler-show></div>"
-      + checker
-      + "<div class=course id='course-" + course.id + "'>" + result + "</div>"
-//      + remover
-      + "<clear></clear>"
+  return category + ( "<div class=flex>"
+    + checker
+    + "<details class=course-wrapper style=''>"
+      + "<summary id='course-" + course.id + "' class='course box-b box-b-" + course.id + "'>"
+        + result
+        + "<div class=toggler-show></div>"
       + "</summary>"
       + "<div class=details id='details-" + course.id + "'>"
         + details
       + "</div>"
-  + "</details>"
+    + "</details></div>"
   );
 }
 
@@ -271,22 +263,22 @@ window.onload = function() {
 
   // show courses
   window.lastCategory = null;
-  main.innerHTML = "<div><details class='category hidden'>" + data.map(courseDiv).join("\n") + "</details></div>";
+  main.innerHTML = "<div><details hidden>" + data.map(courseDiv).join("\n") + "</details></div>";
 
   // load state
   if (hasLocalStorage)
     JSON.parse(localStorage.checked || "[]").forEach(x => {
       var elem = document.getElementById(x[0]);
       if (elem) elem.checked = x[1];
-      if (elem && elem.classList.length>0 && x[1]) elem.parentElement.classList.toggle(
+      if (elem && elem.classList.length>0 && x[1]) elem.parentElement.nextSibling.classList.toggle(
         elem.classList[0].replace("er", "ed"));
     });
 
   // enable toggles
   $("input.checker").forEach( x => x.onclick = e => {
-    x.parentElement.classList.toggle("checked");
+    x.parentElement.nextSibling.classList.toggle("checked");
     saveState();
-    x.parentElement.parentElement.open = !x.parentElement.parentElement.open; // BUG workaround
+//    x.parentElement.parentElement.open = !x.parentElement.parentElement.open; // BUG workaround
   });
   $(".course-wrapper > summary").forEach(x => x.onclick = () =>
     $(".course-wrapper > summary").forEach(y => x !== y ? y.parentElement.open = false : ""));
