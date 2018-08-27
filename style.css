@@ -27,10 +27,10 @@ summary b {padding:.5em; padding-bottom:0; display:block}
 .box-c {background:#ddd;height:1px;position:absolute}
 .highlight-box-b {box-shadow: 0 0 10px black}
 
-.flex {display:flex; align-items:flex-start}
+.flex {display:flex; align-items:flex-start; margin:.5em 0}
 .course-wrapper {flex-grow:1}
-.flex > label {padding:.6em}
-.course {display:flex; border:1px dotted silver; padding:0.5rem}
+.flex > label {padding:.4em}
+.course {display:flex; border:1px dotted silver; padding:0.25em 0.5em}
 .course:hover {border:1px solid black; cursor:pointer;}
 .course > span {overflow:hidden; text-overflow:ellipsis; white-space:nowrap}
 .course > span:nth-child(1) {width:3em;color:red}
