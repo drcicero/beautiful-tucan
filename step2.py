@@ -313,7 +313,7 @@ if __name__ == "__main__":
             f.write(pystache.render("""
 <!doctype html>
 <html><head>
-  <meta charset=utf8>
+  <meta charset=UTF-8>
   <meta name=viewport content="width=device-width, initial-scale=1.0">
   <title>{{today4}}, {{regulation_short}}, inoffizieller Wochenplaner TU Darmstadt FB Informatik</title>
   <style>
