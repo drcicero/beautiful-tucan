@@ -321,27 +321,29 @@ if __name__ == "__main__":
   </style>
 </head><body>
 
-  <h1>{{today4}} {{regulation_short}}</h1>
-  Zuletzt aktualisiert: {{today2}}<br/>
-  <p>
-    <b>Benutzung auf eigene Gefahr!</b>
-    Dies ist eine inoffizielle Seite, der inoffizielle Wochenplaner TU Darmstadt FB Informatik.
-    Beachten Sie, das Übungsgruppentermine nicht aufgeführt werden, sondern nur Termine die in Tucan direkt als Veranstaltungstermin gelistet sind.
-    <!-- Manchmal finden Termine auch erst ab der zweiten Woche statt. -->
-    Desweiteren kann es sein, dass bspw. ein Kurs in der falschen Kategorie angezeigt wird (wie bspw. 'Mathe 3'),
-    ein Kurs fehlt, oder ein angezeigter Kurs eine andere Anzahl an CP bringt, die Räume geändert wurden, etc.
-    Alle Angaben ohne Gewähr, Ich hoffe sie helfen trotzdem :)
-  </p>
-  <!--<p>Hinweis: Pflichtveranstaltung müssen irgendwann belegt worden sein, aber nicht unbedingt alle gleichzeitig.
-  Für Regelstudienzeit sind durchschnittlich jedes Semester 30 CP vorgesehen.-->
-  <a href=./index.html>Mehr Informationen</a></p>
-  </details>
+  <div>
+    <h1>{{today4}} {{regulation_short}}</h1>
+    Zuletzt aktualisiert: {{today2}}<br/>
+    <p>
+      <b>Benutzung auf eigene Gefahr!</b>
+      Dies ist eine inoffizielle Seite, der inoffizielle Wochenplaner TU Darmstadt FB Informatik.
+      Beachten Sie, das Übungsgruppentermine nicht aufgeführt werden, sondern nur Termine die in Tucan direkt als Veranstaltungstermin gelistet sind.
+      <!-- Manchmal finden Termine auch erst ab der zweiten Woche statt. -->
+      Desweiteren kann es sein, dass bspw. ein Kurs in der falschen Kategorie angezeigt wird (wie bspw. 'Mathe 3'),
+      ein Kurs fehlt, oder ein angezeigter Kurs eine andere Anzahl an CP bringt, die Räume geändert wurden, etc.
+      Alle Angaben ohne Gewähr, Ich hoffe sie helfen trotzdem :)
+    </p>
+    <!--<p>Hinweis: Pflichtveranstaltung müssen irgendwann belegt worden sein, aber nicht unbedingt alle gleichzeitig.
+    Für Regelstudienzeit sind durchschnittlich jedes Semester 30 CP vorgesehen.-->
+    <a href=./index.html>Mehr Informationen</a></p>
+    </details>
 
-  <br/>
-  <noscript>Please, activate JavaScript to use this list. Thank you. :)</noscript>
-  <div id=main></div>
-  <div id=main2>... Generiere Liste ...</div>
+    <br/>
+    <noscript>Please, activate JavaScript to use this list. Thank you. :)</noscript>
+    <div id=main>... Generiere Liste ...</div>
+  </div>
 
+  <div id=main2></div>
   <script src="code.js"></script>
 
   <script>
