@@ -193,7 +193,11 @@ def clean(module_id, entry, fields, regulation):
 import datetime
 def parse_date(i):
   # translate germany -> english
-  string = i[0].replace(".", "").replace("Mai", "May").replace("Okt", "Oct").replace("Dez", "Dec")
+  string = (i[0].replace(".", "")
+    .replace("Mär", "Mar")
+    .replace("Mai", "May")
+    .replace("Okt", "Oct")
+    .replace("Dez", "Dec"))
   return datetime.datetime.strptime(string, "%d %b %Y")
 
 def clean_dates(item):
