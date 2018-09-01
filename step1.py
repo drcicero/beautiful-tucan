@@ -315,7 +315,7 @@ def extract_tucan_course_modules(soup, blame):
         tables = soup.select('table.tb')
         table = get_table_with_caption(tables, 'Enthalten in Modulen')
         if not table: return []
-        return [i.text.strip()[:10] for i in table.select("td")[1:] in i.text]
+        return [i.text.strip()[:10] for i in table.select("td")[1:]]
     except Exception as e:
         print('\n(warn: no modules for "{}" cause {})'.format(blame, e))
         return []
