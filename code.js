@@ -40,6 +40,10 @@ function find_id(grid, min_t, max_t) {
   return id;
 }
 
+function uniq(lst) {
+  var last;
+  return lst.filter(i => { var ok = i != last; last = i; return ok; })
+}
 
 // use localStorage
 function saveState() {
@@ -109,7 +113,7 @@ function saveState() {
       .map   (course => parseInt(course.credits))
       .reduce((x,y) => x+y, 0)
     +" CP in folgenden Kursen ausgewählt:<br>"
-    + selected.map   (course => course.title_short).join(", ")
+    + selected.map(course => course.title_short).join(", ")
     + "<br><br>"
 
     + "Wochen-Kalender:"
@@ -213,7 +217,7 @@ function courseDiv(course) {
           "* " + x.count +"x "+ x.day +" "+ x.start +" - "+ x.end +" ("+ x.room +")"
         ).join("<br/>")
       + "<br/><br/>";
-  details += "<b>Kurse</b><br/>" + course.content.map(x=>x.title).join("<br/>\n")+"<br/><br/>"
+  details += "<b>Kurse</b><br/>" + uniq(course.content.map(x=>x.title)).join("<br/>\n")+"<br/><br/>"
   details += course.details.filter(x=>x.details != "").map( x =>
     "<b>" + x.title + "</b><br/>" + x.details).join("<br/>\n");
 
@@ -230,7 +234,6 @@ function courseDiv(course) {
     + "</details></div>"
   );
 }
-
 
 window.onload = function() {
 
@@ -324,3 +327,5 @@ window.onload = function() {
 
   saveState();
 }
+document.addEventListener("pjax:success", window.onload)
+

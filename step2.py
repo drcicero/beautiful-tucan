@@ -248,7 +248,8 @@ if __name__ == "__main__":
     today    = now.strftime("%Y-%m")
     today2   = now.strftime("%d. %b %Y")
     today3   = now.strftime("%b %Y")
-    today4   = ("Sommer" if 3 <= now.month < 9 else "Winter") +" "+ now.strftime("%Y")
+    today4   = ("Sommer "+ now.strftime("%Y") if 3 <= now.month < 9 else
+                "Winter " + now.strftime("%Y") +"/"+ str(int(now.strftime("%Y")[2:])+1))
 
     fields    = utils.json_read("cache/" + filedate + "-inferno.json")
     #nebenfach = utils.json_read("nebenfach.json")
@@ -264,13 +265,35 @@ if __name__ == "__main__":
 #    fields = [back] + list(fields.values())
 #    print(json.dumps(fields, indent=2))
 
+    with open("page.html") as f: page_tmpl = f.read()
+    with open("index.html") as f: index_tmpl = f.read()
 
-    regulations = {"B.Sc. Informatik (2015)": "Bachelor Informatik",
-                   "M.Sc. Informatik (2015)": "Master Informatik"}
-    for regulation, regulation_short in regulations.items():
-        filename = "".join(c for c in regulation if c.isalnum())
-        dates = utils.json_read("cache/" + filedate + "--" + filename + ".json")
+    filename = lambda reg: "".join(c for c in reg if c.isalnum())
 
+    regulations = [(k,
+                    k.replace("B.Sc.", "Bachelor")
+                     .replace("M.Sc.", "Master")
+                     .replace(" (2015)", ""),
+                    today + "-" + filename(k) + ".html")
+                   for k in fields.keys()
+                   if k.endswith(" (2015)")]
+    simple_regulations = [(a,b,c) for a,b,c in regulations if b.endswith(" Informatik")]
+    hard_regulations   = [(a,b,c) for a,b,c in regulations if not b.endswith(" Informatik")]
+
+    with open("gh-pages/index.html", "w") as f:
+      f.write(pystache.render(index_tmpl, {
+        "list": [
+          {'href': href, 'title': today4 +" "+ regulation_short}
+          for regulation, regulation_short, href in simple_regulations
+        ],
+        "experimentallist": [
+          {'href': href, 'title': today4 +" "+ regulation_short}
+          for regulation, regulation_short, href in hard_regulations
+        ],
+      }))
+
+    for regulation, regulation_short, href in regulations:
+        dates = utils.json_read("cache/" + filedate + "--" + filename(regulation) + ".json")
         data = [clean(module_id, module, fields, regulation)
                 for module_id, module in dates.items()]
         data.sort(key=lambda x:(x['category'], x['id'])) # -int(x['credits'])
@@ -313,50 +336,9 @@ if __name__ == "__main__":
     #    name = field.replace(".", "").replace("(", "").replace(")", "").replace("/", "").replace(" ", "")
 
         #today = datetime.datetime.today().strftime("%d. %b. %Y")
-        with open("gh-pages/" + today + "-" + filename + ".html", "w") as f:
-            f.write(pystache.render("""
-<!doctype html>
-<html><head>
-  <meta charset=UTF-8>
-  <meta name=viewport content="width=device-width, initial-scale=1.0">
-  <title>{{today4}}, {{regulation_short}}, inoffizieller Wochenplaner TU Darmstadt FB Informatik</title>
-  <style>
-{{{css_style}}}
-  </style>
-</head><body>
 
-  <div>
-    <h1>{{today4}} {{regulation_short}}</h1>
-    Zuletzt aktualisiert: {{today2}}<br/>
-    <p>
-      <b>Benutzung auf eigene Gefahr!</b>
-      Dies ist eine inoffizielle Seite, der inoffizielle Wochenplaner TU Darmstadt FB Informatik.
-      Beachten Sie, das Übungsgruppentermine nicht aufgeführt werden, sondern nur Termine die in Tucan direkt als Veranstaltungstermin gelistet sind.
-      <!-- Manchmal finden Termine auch erst ab der zweiten Woche statt. -->
-      Desweiteren kann es sein, dass bspw. ein Kurs in der falschen Kategorie angezeigt wird (wie bspw. 'Mathe 3'),
-      ein Kurs fehlt, oder ein angezeigter Kurs eine andere Anzahl an CP bringt, die Räume geändert wurden, etc.
-      Alle Angaben ohne Gewähr, Ich hoffe sie helfen trotzdem :)
-    </p>
-    <!--<p>Hinweis: Pflichtveranstaltung müssen irgendwann belegt worden sein, aber nicht unbedingt alle gleichzeitig.
-    Für Regelstudienzeit sind durchschnittlich jedes Semester 30 CP vorgesehen.-->
-    <a href=./index.html>Mehr Informationen</a></p>
-    </details>
-
-    <br/>
-    <noscript>Please, activate JavaScript to use this list. Thank you. :)</noscript>
-    <div id=main>... Generiere Liste ...</div>
-  </div>
-
-  <div id=main2></div>
-  <script src="code.js"></script>
-
-  <script>
-/* -------------------------------------------------------------------------- */
-window.data = {{{js_data}}};
-  </script>
-</body></html>
-
-          """, {
+        with open("gh-pages/" + href, "w") as f:
+            f.write(pystache.render(page_tmpl, {
                 "today": today,
                 "today2": today2,
                 "today3": today3,

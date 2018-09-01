@@ -1,24 +1,17 @@
 <!doctype html><head>
   <meta charset=UTF-8>
-  <style>
-html {font:15px/1.75 sans}
-h1 {line-height:1.25}
-body {max-width:640px; margin:auto; padding:30px}
-  </style>
-</head><body>
+  <meta name=viewport content="width=device-width, initial-scale=1.0">
+  <link rel=stylesheet href=style.css>
+<!--  <script src="https://cdn.jsdelivr.net/npm/pjax@0.2.7/pjax.min.js"></script>-->
+  <script src="code.js"></script>
+</head><body class=welcome>
 
-<h1 style=font-size:2rem;>Inoffizieller Wochenplaner<br>TU Darmstadt FB Informatik</h1>
+<h1 style=font-size:2rem;>Inoffizieller Wochenplaner<br>Informatik TU Darmstadt</h1>
 
 <br/>
 <p>Verfügbare Listen:</p>
-<ul>
-  <!--<li><a href="2018-08-BScInformatik2015.html">2018/19 Wintersemester Bachelor</a>-->
-  <!--<li><a href="2018-08-MScInformatik2015.html">2018/19 Wintersemester Master</a>-->
-  <li><a href="2018-08-BScInformatik2015.html">Veranstaltungen im Sommer 2018 Bachelor</a>
-  <li><a href="2018-08-MScInformatik2015.html">Veranstaltungen im Sommer 2018 Master</a>
-  <!--<li><a href="2018-04-BScInformatik2015.html">2018 Sommersemester Bachelor</a>-->
-  <!--<li><a href="2018-04-MScInformatik2015.html">2018 Sommersemester Master</a>-->
-</ul>
+<ul>{{#list}}<li><a href="{{href}}">{{title}}</a>{{/list}}</ul>
+
 <br/>
 
   <p>
@@ -39,7 +32,39 @@ body {max-width:640px; margin:auto; padding:30px}
     <b>Woher stammen die Daten?</b><br>
     Die Liste der verfügbaren Veranstaltungen und deren Termine werden aus dem Vorlesungsverzeichnis bei <a href=https://www.tucan.tu-darmstadt.de>Tucan</a> (bei 'Tucan > Vorlesungsverzeichnis > Alle Kurse') gesammelt.
     Danach werden die passenden Credit-Points und die Veranstaltungsdetails über das <a href="http://inferno.dekanat.informatik.tu-darmstadt.de">Inferno Prüfungsplantool</a> nachgeschlagen. 
+    <br><br>
+
+    <b>Wer hat diese Seite gemacht?</b><br>
+    Schon seit dem ersten Semester wollte ich einen einen Überblick über die Kurse haben.
+    Jetzt hab ich mich endlich dazu durch gerungen es umzusetzen.
+    Diese Seite wurde von mir (David Richter) im Rahmen des
+    'Projektpraktikums E-Learning' bei Guido Rößling entwickelt.
+    Der Tucan-crawler basiert auf Code von David Gengenbach.
+    <br><br>
+    Kontakt und Feedback an David Richer unter <span style=color:blue id=contact></span>.
+
+<script>
+    var a="moc", b="liamg", c="ohk5shae6iot";
+    contact.innerHTML += (" <style>.at:before {content:' AT '} .dot:before {content:' DOT '}</style> ");
+    contact.innerHTML += (" " + c);
+    contact.innerHTML += (" AT ");
+    contact.innerHTML += (" " + Array.from(b).reverse().join(""));
+    contact.innerHTML += (" PUNKT ");
+    contact.innerHTML += (" " + Array.from(a).reverse().join(""));
+</script>
   </p>
-</div>
+</div><br>
+
+<details><summary>Experimentelle Listen:</summary>
+Auf Nachfrage, habe ich es auch mal für die speziellen Mastergänge ausprobiert, aber da ich keinen habe kann ich es nicht überprüfen, ob sie stimmen...
+<ul>{{#experimentallist}}<li><a href="{{href}}">{{title}}</a>{{/experimentallist}}</ul>
+</details>
+
+  <script>
+var pjax = new Pjax({
+  elements: "a", // default is "a[href], form[action]"
+  selectors: ["body"],
+})
+  </script>
 
 </body>

@@ -8,7 +8,7 @@ small {color:#888; font-size:.9em; line-height:1em;}
 html {font:14px/1.4 /*'EB Garamond', Garamond, Georgia, */ Roboto, sans-serif;}
 body {margin:auto; max-width:40em; padding:1em; padding-top:1em;}
 hidden {display:none}
-h1 {font-size:2em;}
+h1 {font-size:2em; line-height:1.25}
 
 /* details summary */
 summary::-webkit-details-marker {display:none} summary {list-style-type:none}
@@ -45,7 +45,7 @@ summary b {padding:.5em; padding-bottom:0; display:block}
 
 @media (min-width: 1100px) {
   body {max-width:80em}
-  body > :first-child, #main2 {width:50%; box-sizing:border-box}
+  #main3, #main2 {width:50%; box-sizing:border-box}
   #main2 {position: fixed; top:0; right:0; height: 100vh; overflow-y:scroll; padding:3em 1em}
 }
 
@@ -100,3 +100,6 @@ summary b {padding:.5em; padding-bottom:0; display:block}
 }
 .esc:hover, .prev:hover, .next:hover { background: #222 }
 /**/
+
+body.welcome {font:15px/1.75 sans; max-width:640px; margin:auto; padding:30px}
+

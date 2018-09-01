@@ -46,14 +46,10 @@ def main():
     if not os.path.exists('cache'): os.mkdir("cache")
 
     prefix = datetime.datetime.today().strftime("cache/%Y-%m-%d-")
-    regulations = [
-      "M.Sc. Informatik (2015)",
-      "B.Sc. Informatik (2015)",
-    ]
-
     cred = get_credentials()
 
-    inferno = json_read_or(prefix+'inferno.json', lambda: download_inferno(cred, regulations))
+    inferno = json_read_or(prefix+'inferno.json', lambda: download_inferno(cred, []))
+    regulations = list(inferno.keys())
     courses = json_read_or(prefix+'pre-tucan.json', lambda: download_tucan_vv_search(cred))
     courses = json_read_or(prefix+'tucan.json', lambda: download_tucan_vv_pages(cred, courses))
 
@@ -64,10 +60,8 @@ def main():
 
     module_ids = ( {module_id for courses in [courses, courses2, courses3, courses4]
                               for course in courses for module_id in course['modules']}
-                 | inferno[regulations[0]].keys()
-                 | inferno[regulations[1]].keys() )
-    modules = json_read_or(prefix+'inferno-modules.json',
-      lambda: download_from_inferno(cred, module_ids))
+                 | {key for regulation in regulations for key in inferno[regulation].keys()} )
+    modules = json_read_or(prefix+'inferno-modules.json', lambda: download_from_inferno(cred, module_ids))
     modules = inner_join(courses, modules)
     for regulation in regulations:
         module_part = {k:v for k,v in modules.items() if regulation in str(v['regulations'])}
@@ -79,18 +73,19 @@ def main():
 # download
 
 def download_inferno(credentials, roles):
-    print("\ninferno", roles)
+    print("\ninferno")
     browser = log_into_sso(credentials)
     # make new plan, with master computer science 2015, in german
     page = browser.get(INFERNO_URL + "/pp/plans?form&lang=de")
 #    lst  = (set(page.soup.select(".planEntry label a"))
 #          - set(page.soup.select(".planEntry label a.inactive")))
     form = page.soup.form
-    option = [(i.text, i['value'])
-              for i in form.select("#_regularity_id option")
-              if i.text in roles]
+    options = [(i.text, i['value'])
+               for i in form.select("#_regularity_id option")]
+    #print("options", options)
     result = {}
-    for k,v in option:
+    for k,v in options:
+      print("  * ", k)
       urlopt = "?form=&regularity=" + v
       page = browser.get(INFERNO_URL + form['action'] + urlopt)
       # group entries hierarchically
