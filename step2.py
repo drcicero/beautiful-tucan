@@ -201,9 +201,9 @@ def parse_date(i):
   return datetime.datetime.strptime(string, "%d %b %Y")
 
 def clean_dates(item):
-    dates = [i.split("\t") for lst in item for i in lst]
+    dates = [i.split("\t") for i in set(i for lst in item for i in lst)]
     # summarize recurring weekly events
-    sorted_dates = list(sorted(parse_date(i)for i in dates))
+    sorted_dates = list(sorted(parse_date(i) for i in dates))
     first = last = first_to_last = ""
     if len(sorted_dates) > 0:
       first = sorted_dates[ 0].strftime("%Y-%m-%d")
