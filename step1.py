@@ -308,7 +308,7 @@ def extract_tucan_details(soup, blame):
                                  for x in str(details_raw).split('<b>')[1:])
     except Exception as e:
         print('\n(warn: no details for "{}" cause {})'.format(blame, e))
-        return []
+        return {}
 
 def extract_tucan_course_modules(soup, blame):
     try:
