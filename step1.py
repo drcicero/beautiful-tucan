@@ -208,8 +208,8 @@ def get_tucan_page(browser, title_url, session_key, i, maxi):
     url = url[:68] + session_key + url[84:]
     page = browser.get(TUCAN_URL + url)
     dates   = extract_tucan_dates(page.soup, blame=title)
-    details = extract_tucan_module(page.soup)
-    modules = extract_tucan_course_modules(page.soup)
+    details = extract_tucan_details(page.soup, blame=title)
+    modules = extract_tucan_course_modules(page.soup, blame=title)
     return merge_dict(details, {'title':title, 'dates':dates, 'modules':modules}) # 'link':url,
 
 def walk_tucan_list(browser, page):
@@ -238,12 +238,12 @@ def walk_tucan(browser, start_page, limit=None):
                         p.apply(walk_tucan_, nlink, nlinki)
                 return link, None
             elif isModule(link):
-                return link, merge_dict(extract_tucan_module(page.soup),
+                return link, merge_dict(extract_tucan_details(page.soup, blame=title),
                   {'modules':[title[:10]], 'title':title}) # 'link':link
             elif isCourse(link):
                 dates   = extract_tucan_dates(page.soup, blame=title)
-                details = extract_tucan_module(page.soup)
-                modules = extract_tucan_course_modules(page.soup)
+                details = extract_tucan_details(page.soup, blame=title)
+                modules = extract_tucan_course_modules(page.soup, blame=title)
                 return link, merge_dict(details,
                   {'title':title, 'dates':dates, 'modules':modules}) # 'link':link,
         p.apply(walk_tucan_, start_page, dict(title='', path=[]))
@@ -294,23 +294,31 @@ def extract_links(soup, path):
     return [details(x.a) for x in soup.select(SELECTOR)
             if x.text.strip() not in BLACKLIST and x.a]
 
-def extract_tucan_module(soup):
-    details_raw = soup.select_one('#pageContent table:nth-of-type(1) .tbdata')
-    return sanitize_details({"title":   x.split('</b>')[0].strip(),
-                             "details": x.split('</b>')[1].strip()}
-                             for x in str(details_raw).split('<b>')[1:])
-
 def extract_inferno_module(soup):
     SELECTOR = '#_title_ps_de_tud_informatik_dekanat_modulhandbuch_model_Module_id .fieldRow'
     return sanitize_details({"title":   str(i.find("label").text).strip(),
                              "details": str(i.find("div")).strip()}
                              for i in soup.select(SELECTOR))
 
-def extract_tucan_course_modules(soup):
-    tables = soup.select('table.tb')
-    table = get_table_with_caption(tables, 'Enthalten in Modulen')
-    if not table: return []
-    return [i.text.strip()[:10] for i in table.select("td")[1:] if "(SoSe 2018)" in i.text]
+def extract_tucan_details(soup, blame):
+    try:
+        details_raw = soup.select_one('#pageContent table:nth-of-type(1) .tbdata')
+        return sanitize_details({"title":   x.split('</b>')[0].strip(),
+                                 "details": x.split('</b>')[1].strip()}
+                                 for x in str(details_raw).split('<b>')[1:])
+    except Exception as e:
+        print('\n(warn: no details for "{}" cause {})'.format(blame, e))
+        return []
+
+def extract_tucan_course_modules(soup, blame):
+    try:
+        tables = soup.select('table.tb')
+        table = get_table_with_caption(tables, 'Enthalten in Modulen')
+        if not table: return []
+        return [i.text.strip()[:10] for i in table.select("td")[1:] in i.text]
+    except Exception as e:
+        print('\n(warn: no modules for "{}" cause {})'.format(blame, e))
+        return []
 
 def extract_tucan_dates(soup, blame):
     try:
@@ -322,6 +330,7 @@ def extract_tucan_dates(soup, blame):
         return ""
     except Exception as e:
         print('\n(warn: no dates for "{}" cause {})'.format(blame, e))
+        return ""
 
 def get_table_with_caption(tables, caption):
     try: return [table for table in tables if table.caption and caption in table.caption.text][0]
