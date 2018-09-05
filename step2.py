@@ -148,15 +148,15 @@ def clean(module_id, entry, fields, regulation):
       simplified_path
       or
       {
-        "01": "C. Nebenfach FB Entrep",
-        "02": "C. Nebenfach FB Philosophie",
-        "03": "C. Nebenfach FB Humanw, Sportw",
-        "04": "C. Nebenfach FB Logik, Numerik, Optimierung, Stochastik",
-        "11": "C. Nebenfach FB Geow",
-        "13": "C. Nebenfach FB Bau, Verkehr",
-        "16": "C. Nebenfach FB Fahrzeug",
-        "18": "C. Nebenfach FB Elektro",
-        "05": "C. Nebenfach FB Elektro, Physik",
+        "01": "C. Nebenfach FB 01 (Wirtschaft & Recht; Entrepeneurship)",
+        "02": "C. Nebenfach FB 02 (Philosophie)",
+        "03": "C. Nebenfach FB 03 (Humanw.; Sportw.)",
+        "04": "C. Nebenfach FB 04 (Logik; Numerik; Optimierung; Stochastik)",
+        "05": "C. Nebenfach FB 05 (Elektrow.; Physik)",
+        "11": "C. Nebenfach FB 11 (Geow.)",
+        "13": "C. Nebenfach FB 13 (Bauinformatik; Verkehr)",
+        "16": "C. Nebenfach FB 16 (Fahrzeugtechnik)",
+        "18": "C. Nebenfach FB 18 (Elektrotechnik)",
         "41": "C. Sprachkurse",
       }.get(module_id[:2]) or
       "0. Pflichtveranstaltungen"
