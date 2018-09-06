@@ -2,40 +2,19 @@
 # -*- coding: utf-8 -*-
 
 from __future__ import division
-import os, re, sys, json, getpass, warnings, itertools, datetime, time, traceback
+import os, re, sys, json, getpass, warnings, datetime, traceback
 import multiprocessing.dummy as mp
+import utils
 
 import bs4                  # html parsing
 import mechanicalsoup as ms # GET, POST, cookie requests
 
-POOLSIZE = 8 #  8  -->  ~6min; 
+POOLSIZE = 16 #  8  -->  ~6min
 
 SSO_URL     = "https://sso.tu-darmstadt.de"
 TUCAN_URL   = "https://www.tucan.tu-darmstadt.de"
 INFERNO_URL = "http://inferno.dekanat.informatik.tu-darmstadt.de"
 
-# do not follow these links to decrease run time
-BLACKLIST = (
-    # anmeldung
-    'Weitere Veranstaltungen',
-    'Leistungen für den Masterstudiengang',  # PO 2009
-    'Vorgezogene Masterleistungen',          # PO 2015
-    'Anmelden',
-    'Zusätzliche Leistungen',
-    'Gesamtkatalog aller Module an der TU Darmstadt',
-    'Informatik fachübergreifend',
-    'Module des Sprachenzentrums mit Fachprüfungen',
-    'Fachübergreifende Veranstaltungen',     # PO 2009
-    'Fachübergreifende Lehrveranstaltungen', # PO 2015
-    'Veranstaltung',
-
-    # vorlesungsverzeichnis
-    'Gesamtes Lehrangebot',
-    'Computational Engineering (Studiengang)',
-    'Lehramt',
-    'Service für andere Fachbereiche',
-    'Prüfungstermine',
-)
 
 warnings.simplefilter('ignore', UserWarning) # ignore bs4 warnings like:
 # """UserWarning: "b'////////'" looks like a filename, not markup.
@@ -45,28 +24,33 @@ warnings.simplefilter('ignore', UserWarning) # ignore bs4 warnings like:
 def main():
     if not os.path.exists('cache'): os.mkdir("cache")
 
-    prefix = datetime.datetime.today().strftime("cache/%Y-%m-%d-")
+    prefix = "cache/" + utils.half_semester_filename(datetime.datetime.today()) + "-"
     cred = get_credentials()
 
-    inferno = json_read_or(prefix+'inferno.json', lambda: download_inferno(cred, []))
+    get_inferno   = lambda: download_inferno(cred, [])
+    get_pre_tucan = lambda: download_tucan_vv_search(cred)
+    get_tucan     = lambda: download_tucan_vv_pages(cred, courses)
+    inferno = utils.json_read_or(prefix+'inferno.json',   get_inferno)
+    courses = utils.json_read_or(prefix+'pre-tucan.json', get_pre_tucan)
+    courses = utils.json_read_or(prefix+'tucan.json',     get_tucan)
     regulations = list(inferno.keys())
-    courses = json_read_or(prefix+'pre-tucan.json', lambda: download_tucan_vv_search(cred))
-    courses = json_read_or(prefix+'tucan.json', lambda: download_tucan_vv_pages(cred, courses))
 
-    # three alternative ways to get list of courses:
-    courses2 = [] #json_read_or(prefix+'tucan-FBs.json', lambda: download_tucan_vv_catalogue(cred, ("01", "02", "03", "04", "05", "11", "13", "16", "18", "20",)))
-    courses3 = [] #json_read_or(prefix+'tucan-FB20.json', lambda: download_tucan_vv_catalogue(cred, ("20",)))
-    courses4 = [] #json_read_or(prefix+'tucan-anmeldung.json', lambda: download_tucan_anmeldung(cred))
+#    # three alternative ways to get list of courses:
+#    courses2 = utils.json_read_or(prefix+'tucan-FBs.json', lambda: download_tucan_vv_catalogue(cred,
+#      # ("01", "02", "03", "04", "05", "11", "13", "16", "18", "20",)))
+#    courses3 = utils.json_read_or(prefix+'tucan-FB20.json', lambda: download_tucan_vv_catalogue(cred,
+#      # ("20",)))
+#    courses4 = utils.json_read_or(prefix+'tucan-anmeldung.json', lambda: download_tucan_anmeldung(cred))
 
-    module_ids = ( {module_id for courses in [courses, courses2, courses3, courses4]
-                              for course in courses for module_id in course['modules']}
+    module_ids = ( {module_id for course in courses for module_id in course['modules']}
                  | {key for regulation in regulations for key in inferno[regulation].keys()} )
-    modules = json_read_or(prefix+'inferno-modules.json', lambda: download_from_inferno(cred, module_ids))
+    get_inferno_modules = lambda: download_from_inferno(cred, module_ids)
+    modules = utils.json_read_or(prefix+'inferno-modules.json', get_inferno_modules)
     modules = inner_join(courses, modules)
     for regulation in regulations:
         module_part = {k:v for k,v in modules.items() if regulation in str(v['regulations'])}
         short_regulation = "".join(c for c in regulation if c.isalnum())
-        json_write(prefix+'-'+short_regulation+'.json', module_part)
+        utils.json_write(prefix+'-'+short_regulation+'.json', module_part)
     print()
 
 ################################################################################
@@ -98,25 +82,9 @@ def download_from_inferno(credentials, module_ids):
     browser = log_into_sso(credentials)
     page = browser.get(INFERNO_URL)
     # download all entries
-    status = {'ready':len(module_ids), 'finished':0}
+    status = {'ready':len(module_ids), 'finished':0, 'printed':0}
     with mp.Pool(POOLSIZE) as p:
-        return list(p.map(lambda x: get_inferno_page(browser, status, x), module_ids))
-
-def download_tucan_vv_catalogue(credentials, FBs):
-    print("\ntucan-vv catalogue FB20")
-#    limit = json_read("nebenfach.json")
-#    limit = set(key for fach in limit.values()
-#                    for cat in fach.values()
-#                    for fach in cat
-#                    for key in fach)
-    (browser, page) = log_into_tucan(credentials)
-    page = browser.get(TUCAN_URL + page.soup.select_one('li[title="VV"] a')['href'])
-    result = []
-    for FB in FBs:
-        link = [i for i in page.soup.select("#pageContent a") if i.text.startswith(" FB"+FB)][0]
-        data = walk_tucan(browser, TUCAN_URL + link["href"]) #, limit=None if FB=="20" else limit)
-        result.extend(data)
-    return result
+        return p.map(lambda x: get_inferno_page(browser, status, x), module_ids)
 
 def download_tucan_vv_search(credentials):
     print("\ntucan-vv search")
@@ -131,12 +99,17 @@ def download_tucan_vv_search(credentials):
     page = browser.submit(form, TUCAN_URL + form.form['action'])
     return walk_tucan_list(browser, page)
 
-def download_tucan_anmeldung(credentials):
-    print("\ntucan anmeldung david")
-    (browser, page) = log_into_tucan(credentials)
-    link = page.soup.select_one('li[title="Anmeldung"] a')['href']
-    data = walk_tucan(browser, TUCAN_URL + link)
-    return data
+def walk_tucan_list(browser, page):
+    limit = int(page.soup.select("#searchCourseListPageNavi a")[-1]['class'][0].split("_", 1)[1])
+    result = []
+    with ParallelCrawler(POOLSIZE, limit=limit) as p:
+        def walk(href):
+            page = browser.get(TUCAN_URL + href)
+            navs = page.soup.select("#searchCourseListPageNavi a")
+            for nav in navs: p.apply(walk, nav['href'])
+            return href, [(i.text, i['href']) for i in page.soup.select("a[name='eventLink']")]
+        p.apply(walk, page.soup.select_one("#searchCourseListPageNavi .pageNaviLink_1")['href'])
+        return list(sorted(i for lst in p.get().values() for i in lst))
 
 def download_tucan_vv_pages(credentials, courses):
     print("\ntucan-vv each page")
@@ -144,30 +117,14 @@ def download_tucan_vv_pages(credentials, courses):
     session_key = page.url.split("-")[2][:-1]
     i, maxi = [0], len(courses)
     with mp.Pool(POOLSIZE) as p:
-        return p.map(lambda title_url: get_tucan_page(browser, title_url, session_key, i, maxi), courses)
+        return p.map(lambda title_url:
+            get_tucan_page(browser, title_url, session_key, i, maxi), courses)
 
 def inner_join(courses, modules):
     modules = {item['module_id']:item for item in modules} # for module_id in item['modules']}
     courses = ((module_id, item) for item in courses for module_id in item['modules']
                                  if module_id in modules)
-    return {k:merge(g, modules[k]) for k,g in groupby(courses, key=lambda x:x[0])}
-
-def merge(courses, module):
-    courses = [i[1] for i in courses]
-
-    # credits
-    details = module['details']
-    credits = 0
-    credits_ = [i for i in details if i['title'] in ["Credit Points", "CP", "Credits"]]
-    if len(credits_) > 0:
-        try:
-            credits = int(credits_[0]["details"].split(",")[0])
-            details = [i for i in details if not i['title'] in ["Credit Points", "CP", "Credits"]]
-        except:
-            pass
-
-    content = [{k:v for k,v in i.items() if k!="modules"} for i in courses]
-    return merge_dict(module, {'content':content, 'details':details, 'credits':credits})
+    return {k:merge(g, modules[k]) for k,g in utils.groupby(courses, key=lambda x:x[0])}
 
 def flatten_inferno(item, path):
     path = path + [item.h2.text.replace("\t", "").replace("\n", "")]
@@ -187,107 +144,65 @@ INFERNO_PREFIX = "http://inferno.dekanat.informatik.tu-darmstadt.de/pp/plans/mod
 def get_inferno_page(browser, status, module_id):
     status['finished'] += 1; progress(status['finished'], status['ready']) # progress
     page = browser.get(INFERNO_PREFIX + module_id + "?lang=de")
-    details = extract_inferno_module(page.soup)
+    details = extract_inferno_module(page.soup) or {}
     # TODO get title
-    try:
-      regulations = [i['details']
-                     for i in details['details']
-                     if i['title'] == "Studiengangsordnungen"][0]
-      return merge_dict(details, {'module_id':module_id, 'regulations':regulations})
-    except:
-      return merge_dict(details, {'module_id':module_id, 'regulations':[]})
+    regulations = [i['details']
+                   for i in details['details']
+                   if i['title'] == "Studiengangsordnungen"]
+    regulations = regulations[0] if regulations else []
+    return utils.merge_dict(details, {'module_id':module_id, 'regulations':regulations})
 
 def get_tucan_page(browser, title_url, session_key, i, maxi):
     i[0] += 1; progress(i[0], maxi)
     title, url = title_url
     url = url[:68] + session_key + url[84:]
     page = browser.get(TUCAN_URL + url)
-    dates   = extract_tucan_dates(page.soup, blame=title)
-    details = extract_tucan_details(page.soup, blame=title)
-    modules = extract_tucan_course_modules(page.soup, blame=title)
-    return merge_dict(details, {'title':title, 'dates':dates, 'modules':modules}) # 'link':url,
+    dates   = blame("no dates for '"+title+"'",   lambda: extract_tucan_dates(page.soup)) or []
+    uedates = blame("no uedates for '"+title+"'", lambda: extract_tucan_uedates(page.soup, title)) or []
+    details = blame("no details for '"+title+"'", lambda: extract_tucan_details(page.soup)) or {}
+    modules = blame("no modules for '"+title+"'", lambda: extract_tucan_course_modules(page.soup)) or []
+    return utils.merge_dict(details, {'title':title, 'dates':dates, 'uedates':uedates, 'modules':modules}) # 'link':url,
 
-def walk_tucan_list(browser, page):
-    limit = int(page.soup.select("#searchCourseListPageNavi a")[-1]['class'][0].split("_", 1)[1])
-    result = []
-    for i in range(2, limit):
-        progress(i, limit)
-        nav = page.soup.select_one("#searchCourseListPageNavi .pageNaviLink_"+str(i))
-        result.extend( (i.text, i['href']) for i in page.soup.select("a[name='eventLink']") )
-        page = browser.get(TUCAN_URL + nav['href'])
-    result.extend( (i.text, i['href']) for i in page.soup.select("a[name='eventLink']") )
-    return result
+def merge(courses, module):
+    courses = [i[1] for i in courses]
 
-def walk_tucan(browser, start_page, limit=None):
-    with ParallelCrawler(POOLSIZE) as p:
-        def walk_tucan_(link, linki):
-            page = browser.get(link)
-            title = linki['title']
-            path = linki['path'] + [title]
-            print("\r" + "  "*len(linki['path']) + " > " + title)
-            progress(p._finished, p._ready, 300)
-            if isParent(link):
-                for nlink, nlinki in extract_links(page.soup, path):
-                    if (limit is None
-                    or isCourse(nlink) == (nlinki['title'][:10] in limit)):
-                        p.apply(walk_tucan_, nlink, nlinki)
-                return link, None
-            elif isModule(link):
-                return link, merge_dict(extract_tucan_details(page.soup, blame=title),
-                  {'modules':[title[:10]], 'title':title}) # 'link':link
-            elif isCourse(link):
-                dates   = extract_tucan_dates(page.soup, blame=title)
-                details = extract_tucan_details(page.soup, blame=title)
-                modules = extract_tucan_course_modules(page.soup, blame=title)
-                return link, merge_dict(details,
-                  {'title':title, 'dates':dates, 'modules':modules}) # 'link':link,
-        p.apply(walk_tucan_, start_page, dict(title='', path=[]))
-        return [i for i in p.get().values() if i and 'title' in i]
+    # credits
+    details = module['details']
+    credits = 0
+    credits_ = [i for i in details if i['title'] in ["Credit Points", "CP", "Credits"]]
+    if len(credits_) > 0:
+        try:
+            credits = int(credits_[0]["details"].split(",")[0])
+            details = [i for i in details if not i['title'] in ["Credit Points", "CP", "Credits"]]
+        except:
+            pass
+
+    content = [{k:v for k,v in i.items() if k!="modules"} for i in courses]
+    return utils.merge_dict(module, {'content':content, 'details':details, 'credits':credits})
 
 ################################################################################
 # soup extractors
 
+def parse_uedate(string, blamei):
+    # 'Fr, 16. Okt 2018 [13:30]-Fr, 16. Okt 2018 [13:30]' -> (day, start_hm, end_hm)
+    start,  end    = string.split("-")
+    s_wday, e_wday = start[:2],    end[:2]
+    s_day,  e_day  = start[4:-8],  end[4:-8]
+    s_hm,   e_hm   = start[-6:-1], end[-6:-1]
+    if s_wday != e_wday: print("\r(warn: inequal start/end weekday for '{}' cause {} - {}"
+      .format(blamei, start, end))
+    return "\t".join([utils.sanitize_date(s_day), s_hm, e_hm])
+
 def parse_dates(dates):
     def get_time(day, start, end, room):
-        return "\t".join([day.text[4:].strip(),
-                          day.text[:2].strip(),
+        return "\t".join([utils.sanitize_date(day.get_text(strip=True)[4:]),
                           start.get_text(strip=True),
                           end.get_text(strip=True),
                           room.get_text(strip=True)])
-
     return [
         get_time(*event.find_all("td")[1:5])
         for event in dates.find_all("tr")[1:]
     ]
-
-#    from datetime import datetime as dt
-#    sorted_dates = sorted(dt.strptime(i[-1].replace(".", ""), "%d %b %Y") for i in events)
-#    return list(sorted_dates)
-
-#    first = last = first_to_last = ""
-#    if len(sorted_dates) > 0:
-#      first = sorted_dates[ 0].strftime("%Y-%m-%d")
-#      last  = sorted_dates[-1].strftime("%Y-%m-%d")
-#      first_to_last = "Termine liegen von %s bis %s:<br>" % (
-#          sorted_dates[ 0].strftime("%d. %b"),
-#          sorted_dates[-1].strftime("%d. %b"),
-#      )
-#    weekly = [{"count": v, "time": k,
-#               "start": utils.fmt_hm(*k[1]), "end": utils.fmt_hm(*k[2]),
-#               "room": k[3], "day_nr": k[0], "day": utils.num_to_day[k[0]]}
-#              for k, v in collections.Counter(i[:-1] for i in events).items()
-#              if v > 1]
-#    weekly.sort(key=lambda a: (-a["count"], a["time"][0]))
-    #return first_to_last, weekly, first, last
-
-def extract_links(soup, path):
-    def details(link): return TUCAN_URL + link['href'], {
-        'title': link.text.strip(),
-        'path': path
-    }
-    SELECTOR = '#pageContent ul li, #pageContent table tr'
-    return [details(x.a) for x in soup.select(SELECTOR)
-            if x.text.strip() not in BLACKLIST and x.a]
 
 def extract_inferno_module(soup):
     SELECTOR = '#_title_ps_de_tud_informatik_dekanat_modulhandbuch_model_Module_id .fieldRow'
@@ -295,47 +210,43 @@ def extract_inferno_module(soup):
                              "details": str(i.find("div")).strip()}
                              for i in soup.select(SELECTOR))
 
-def extract_tucan_details(soup, blame):
-    try:
-        details_raw = soup.select_one('#pageContent table:nth-of-type(1) .tbdata')
-        return sanitize_details({"title":   x.split('</b>')[0].strip(),
-                                 "details": x.split('</b>')[1].strip()}
-                                 for x in str(details_raw).split('<b>')[1:])
+def blame(msg, func):
+    try: return func()
     except Exception as e:
-        print('\n(warn: no details for "{}" cause {})'.format(blame, e))
-        return {}
+      print("\r(warn: {} cause {} in line {})".format(msg, e, sys.exc_info()[-1].tb_lineno))
 
-def extract_tucan_course_modules(soup, blame):
-    try:
-        tables = soup.select('table.tb')
-        table = get_table_with_caption(tables, 'Enthalten in Modulen')
-        if not table: return []
-        return [i.text.strip()[:10] for i in table.select("td")[1:]]
-    except Exception as e:
-        print('\n(warn: no modules for "{}" cause {})'.format(blame, e))
-        return []
+def extract_tucan_details(soup):
+    details_raw = soup.select_one('#pageContent table:nth-of-type(1) .tbdata')
+    return sanitize_details({"title":   x.split('</b>')[0].strip(),
+                             "details": x.split('</b>')[1].strip()}
+                             for x in str(details_raw).split('<b>')[1:])
 
-def extract_tucan_dates(soup, blame):
-    try:
-        tables = soup.select('table.tb')
-        course_dates = get_table_with_caption(tables, 'Termine')
-        if not course_dates: return
-        #for link in course_dates.select('a'): link['href'] = ''
-        if len(course_dates.select('tr')) > 2: return parse_dates(course_dates)
-        return ""
-    except Exception as e:
-        print('\n(warn: no dates for "{}" cause {})'.format(blame, e))
-        return ""
+def extract_tucan_course_modules(soup):
+    tables = soup.select('table.tb')
+    table = get_table_with_caption(tables, 'Enthalten in Modulen')
+    if not table: return
+    return [i.text.strip()[:10] for i in table.select("td")[1:]]
+
+def extract_tucan_dates(soup):
+    tables = soup.select('table.tb')
+    course_dates = get_table_with_caption(tables, 'Termine')
+    if not course_dates or len(course_dates.select('tr')) <= 2: return
+    return parse_dates(course_dates)
+
+def extract_tucan_uedates(soup, blamei):
+    tables = soup.select('div.tb')
+    if not tables: return
+    course_dates = [t for t in tables if "Kleingruppe(n)" in t.select(".tbhead")[0].text]
+    if not course_dates: return
+    course_dates = course_dates[0]
+    if not len(course_dates.select('li')): return
+    return [parse_uedate(i.select('p')[2].text, blamei)+"\t"+i.strong.text.strip()
+            for i in course_dates.select('li') if i.select('p')[2].text.strip() != ""]
 
 def get_table_with_caption(tables, caption):
     try: return [table for table in tables if table.caption and caption in table.caption.text][0]
     except IndexError: pass
 
-#def get_links_of_table_with_caption(page, caption):
-#    tables = page.select('table.tb')
-#    table = get_table_with_caption(tables, caption)
-#    if not table: return
-#    return set(TUCAN_URL + x['href'] for x in table.select('tr a'))
 
 def sanitize_details(details):
     replacements = [
@@ -368,86 +279,28 @@ def sanitize_details(details):
     
     return {'details':[i for i in details if i['details'] != ""]}
 
-def isParent(x): return "&PRGNAME=REGISTRATION"  in x or "&PRGNAME=ACTION" in x
-def isCourse(x): return "&PRGNAME=COURSEDETAILS" in x
-def isModule(x): return "&PRGNAME=MODULEDETAILS" in x
-
 ################################################################################
 # abstract helper functionality
 
-def progress(current, maximum, hintmaximum=None):
+def progress(current, maximum):
   # print a progress bar like [*****-----------]
-  if hintmaximum is None: hintmaximum = maximum
   MAX = 80
-  a = int(current/hintmaximum*MAX)
-  b = int(maximum/hintmaximum*MAX)-a
-  c = MAX-a-b
-  sys.stderr.write("\r[" + "*"*a + "."*b + "]" + " "*c + " "
-                  + str(current) + "/" + str(maximum) + " ")
+  a = int(current/maximum*MAX)
+  b = MAX-a
+  sys.stderr.write("\r[" + "*"*a + "."*b + "] " + str(current) + "/" + str(maximum) + " ")
   sys.stderr.flush()
 
-def merge_dict(x, y):
-    # return {**x, **y}
-    z = x.copy()
-    z.update(y)
-    return z
-
-def json_write(path, data):
-    with open(path, "w") as f:
-        json.dump(data, f, indent=4, sort_keys=True)
-
-def json_read(path):
-    if not os.path.exists(path):
-        return None
-    with open(path) as f:
-        return json.load(f)
-
-def json_read_or(path, func):
-    result = json_read(path)
-    if result: return result
-    a = time.time()
-    data = func()
-    json_write(path, data)
-    b = time.time()
-    print("\n", "{:0.2f} min".format((b-a)/60))
-    return data
-
-#class mpPool():
-#  def __init__(self, size):
-#     self._pool = mp.Pool(size)
-#  def map(self, f, l):
-#    def myfunc(y):
-#      try:
-#        return f(y)
-#      except Exception as e:
-#        import traceback; traceback.print_exc()
-#        raise e
-#    return self._pool.map(myfunc, l)
-#  def close(self): return self._pool.close()
-#  def join(self): return self._pool.join()
-#  def apply_async(func, args, callback, error_callback):
-#     def myfunc(*a, **b):
-#         try:
-#           callback(func(*a, **b))
-#         except Exception as e:
-#           error_callback(e)
-#     self._pool.apply_async(myfunc, args, callback=mycallback)
-#     #result = self._pool.apply_async(func, args=args, callback=callback, error_callback=error_callback)
-#  def __enter__(self):
-#    return self
-#  def __exit__(self, exc_type, exc_val, exc_tb):
-#     self._pool.close()
-#     self._pool.join()
-
 class ParallelCrawler():
-    __slots__ = ["_ready", "_finished", "_pool", "_event", "_result", "_lock"]
-    def __init__(self, threads=None):
+    __slots__ = ["_ready", "_finished", "_limit", "_pool", "_event", "_result", "_lock"]
+    def __init__(self, threads=None, limit=300):
         self._pool = mp.Pool(POOLSIZE)
         self._event = mp.Event()
         self._result = dict()
+        self._lock = mp.Lock()
+
         self._ready = 0
         self._finished = 0
-        self._lock = mp.Lock()
+        self._limit = limit
     def __enter__(self):
         return self
     def __exit__(self, exc_type, exc_val, exc_tb):
@@ -479,14 +332,11 @@ class ParallelCrawler():
             if args[0] in self._result: return
             self._ready += 1
             self._result[args[0]] = None
+            progress(self._finished, self._limit or self._ready)
         self._pool.apply_async(func, args, callback=cb, error_callback=error_cb)
     def get(self):
         self._event.wait()
         return self._result
-
-def groupby(iterator, key):
-    lst = sorted(iterator, key=key)
-    return itertools.groupby(lst, key)
 
 ################################################################################
 # helper
@@ -523,6 +373,7 @@ def log_into_tucan(credentials):
     login_form['pass']    = credentials["password"]
     page = browser.submit(login_form, page.url)
 
+    if not 'refresh' in page.headers: print(page.soup)
     redirected_url = "=".join(page.headers['REFRESH'].split('=')[1:])
     page = browser.get(TUCAN_URL + redirected_url)
     page = browser.get(_get_redirection_link(page))

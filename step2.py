@@ -6,29 +6,15 @@ from bs4.element import Tag as Bs4Tag
 
 #locale.setlocale(locale.LC_TIME, "de_DE.UTF-8") # german month names
 
-def merge_dicts(x, y):
-    """Given two dicts, merge them into a new dict as a shallow copy."""
-    z = x.copy()
-    z.update(y)
-    return z
-
-def flatten(it, path = ()):
-    for k, v in enumerate(it):
-        if "details" in v:
-            result = merge_dicts({"path": path}, v)
-            del result["children"]
-            # print(path, v["title"])
-            yield result
-        if isinstance(v["children"], list):
-            yield from flatten(v["children"], path + (v["title"],))
-
-
-def get_time(day, start, end, room):
-    return (utils.day_to_num[day.text[:2]],
-            utils.parse_hm(start.text),
-            utils.parse_hm(end.text),
-            room.get_text(strip=True),
-            day.text[4:])
+#def flatten(it, path = ()):
+#    for k, v in enumerate(it):
+#        if "details" in v:
+#            result = merge_dict({"path": path}, v)
+#            del result["children"]
+#            # print(path, v["title"])
+#            yield result
+#        if isinstance(v["children"], list):
+#            yield from flatten(v["children"], path + (v["title"],))
 
 
 def simplify_path(path):
@@ -79,10 +65,9 @@ def clean(module_id, entry, fields, regulation):
       abbr1 = "".join(i for i in title if i.isupper() or i.isnumeric())
       abbr2 = "".join(i[0] if len(i)>0 else "" for i in title.strip().split(" "))
       abbr3 = (get_first("Anzeige im Stundenplan") or "").strip()
-      abbrs = ([abbr3, abbr1, abbr2]
-               if 1 < len(abbr3) < 6 else
-               sorted((i for i in (abbr1, abbr2)), key=lambda x: abs(3.6 - len(x)))
-              )
+      abbrs = ( [abbr3, abbr1, abbr2]
+                if 1 < len(abbr3) < 6 else
+                sorted((i for i in (abbr1, abbr2)), key=lambda x: abs(3.6 - len(x))) )
       return abbrs[0]
 
     # module_id, title, abbr
@@ -140,14 +125,13 @@ def clean(module_id, entry, fields, regulation):
     ).keys()) or "???"
     short_owner = "; ".join(i.split()[-1] for i in owner.split("; "))
 
-    simplified_path = simplify_path(fields['M.Sc. Informatik (2015)'].get(module_id, ["",""])[0])
+    # 'M.Sc. Informatik (2015)'
+    simplified_path = simplify_path(fields[regulation].get(module_id, ["",""])[0])
     category = (
 #      get_first("Gebiet") or get_first("Orga-Einheit") or get_first("Veranstaltungsart") or
       "B. Oberseminare"
       if simplified_path == "B. Seminare" and entry["credits"] == 0 else
-      simplified_path
-      or
-      {
+      simplified_path or {
         "01": "C. Nebenfach FB 01 (Wirtschaft & Recht; Entrepeneurship)",
         "02": "C. Nebenfach FB 02 (Philosophie)",
         "03": "C. Nebenfach FB 03 (Humanw.; Sportw.)",
@@ -164,9 +148,24 @@ def clean(module_id, entry, fields, regulation):
     if "B.Sc." in regulation:
       category = category.replace("Nebenfach", "Fachübergreifend")
 
-    dates = clean_dates(item['dates'] for item in entry['content'] if 'dates' in item)
-    result = merge_dicts(merge_dicts(entry, dates), {
-        "id": module_id,
+    dates   = {i for item in entry['content'] for i in item.get('dates',   [])}
+    uedates = {i for item in entry['content'] for i in item.get('uedates', [])}
+    if len(uedates) == 1:
+      dates |= set(["\t".join(y.split("\t")[:-1])+"\tÜbungstunde"+"\t"+str(i) for i in range(15)
+                   for y in uedates])
+    else: 
+      dates |= set(["\t".join(y.split("\t")[:-1])+"\tÜbung"+"\t"+str(i) for i in range(15)
+                   for y in uedates])
+    uedates = list(uedates)
+#      print(title)
+#    elif len(uedates) > 1:
+#      uedates = list(sorted({(parse_date(item.split("\t")).strftime("%Y-%m-%d"), *item.split("\t")[1:]) for item in uedates}))
+#    else:
+#      uedates = list(uedates)
+    dates = clean_dates(dates)
+    result = utils.merge_dict(entry, dates)
+    result = utils.merge_dict(result, {
+        "id": module_id, "uedates": uedates,
         "title": title, "title_short": abbr,
         "owner": owner, "owner_short": short_owner,
         "credits": str(entry["credits"]).zfill(2),
@@ -176,58 +175,43 @@ def clean(module_id, entry, fields, regulation):
     return result
 
 
-#def keyvalues(i): return (
-#    list({"key": x[0], "value": keyvalues(x[1])} for x in i.items()
-#         )) if isinstance(i, dict) else i
-
-
-#AllocationDict = t.Dict[t.Tuple[int, int], t.Set[int]]
-#def allocate(grid: AllocationDict, event, day: int, min_t: int, max_t: int) -> int:
-#    """ add a unused number to the cells (day, min_t) to (day, mint_t + dt) of grid, and return it. """
-#    for id in itertools.count():
-#        if all(id not in grid[str(day)+"-"+str(t)] for t in range(min_t, max_t)):
-#            for t in range(min_t, max_t):
-#                grid[str(day)+"-"+str(t)][id] = event
-#            return id
-
-import datetime
-def parse_date(i):
-  # translate germany -> english
-  string = (i[0].replace(".", "")
-    .replace("Mär", "Mar")
-    .replace("Mai", "May")
-    .replace("Okt", "Oct")
-    .replace("Dez", "Dec"))
-  return datetime.datetime.strptime(string, "%d %b %Y")
-
 def clean_dates(item):
-    dates = [i.split("\t") for i in set(i for lst in item for i in lst)]
-    # summarize recurring weekly events
-    sorted_dates = list(sorted(parse_date(i) for i in dates))
-    first = last = first_to_last = ""
-    if len(sorted_dates) > 0:
-      first = sorted_dates[ 0].strftime("%Y-%m-%d")
-      last  = sorted_dates[-1].strftime("%Y-%m-%d")
-      first_to_last = "Termine liegen von %s bis %s:<br>" % (
-          sorted_dates[ 0].strftime("%d. %b"),
-          sorted_dates[-1].strftime("%d. %b"),
-      )
+    def parse_date(string):
+      day, start, end, room = string.split("\t", 3)
+      room = room.split("\t")[0]
+      day   = datetime.datetime.strptime(day, "%Y-%m-%d")
+      start = utils.parse_hm(start)
+      end   = utils.parse_hm(end)
+      return [day, start, end, room]
 
-    weekly = [{"count": v,
-               "time": [utils.day_to_num[k[0]], utils.parse_hm(k[1]), utils.parse_hm(k[2])],
-               "day": k[0], "start": k[1], "end": k[2]}
-              for k, v in collections.Counter((i[1],i[2],i[3]) for i in dates).items()
-              if v > 1]
-    for d in weekly:
-      roomlst = [room for i in dates
-                      if (i[1], i[2], i[3]) == (d['day'], d['start'], d['end'])
-                      for room in i[4].split(",")]
-      d['room'] = ", ".join(set(roomlst))
-    weekly.sort(key=lambda a: (-a["count"], a["time"][0]))
+    dates = list(sorted(parse_date(i) for i in item))
+
+    # first, last event
+    first = last = first_to_last = ""
+    if len(dates) > 0:
+        first = dates[ 0][0].strftime("%Y-%m-%d")
+        last  = dates[-1][0].strftime("%Y-%m-%d")
+        first_to_last = "Termine liegen von %s bis %s:<br>" % (
+            dates[ 0][0].strftime("%d. %b"),
+            dates[-1][0].strftime("%d. %b"),
+        )
+
+    # how many weeks does the event repeat?
+    counted = collections.Counter( (i[0].weekday(), i[1], i[2]) for i in dates )
+    counted = [{"count": count, "day": v[0], "start": v[1], "end": v[2]}
+              for v, count in counted.items()]
+
+    # add rooms of weekly events together
+    for d in counted:
+        roomlst = [room for i in dates
+                        if (i[0].weekday(), i[1], i[2]) == (d['day'], d['start'], d['end'])
+                        for room in i[3].split(",")]
+        d['room'] = ", ".join(set(roomlst))
+
+    counted.sort(key=lambda a: (-a["count"], a["day"]))
     return {
-        "weekly": weekly, "first_to_last": first_to_last,
-        "first": first, "last": last,
-        "dates": dates,
+        "dates": [(i[0].strftime("%Y-%m-%d"), i[1:]) for i in dates], "weekly": counted,
+        "first_to_last": first_to_last, "first": first, "last": last,
     }
 
 def pipe(init, *args):  # destroys typing info :/ , should better be a macro
@@ -243,18 +227,15 @@ def groupby(iterator, key):
 if __name__ == "__main__":
     import sys
 
-    now      = datetime.datetime.today() # datetime.datetime(2018, 8, 11)
-    filedate = now.strftime("%Y-%m-%d")
-    today    = now.strftime("%Y-%m")
-    today2   = now.strftime("%d. %b %Y")
-    today3   = now.strftime("%b %Y")
-    today4   = ("Sommer "+ now.strftime("%Y") if 3 <= now.month < 9 else
-                "Winter " + now.strftime("%Y") +"/"+ str(int(now.strftime("%Y")[2:])+1))
+    now    = datetime.datetime.today() # datetime.datetime(2018, 9, 5)
+    today  = now.strftime("%Y-%m")
+    today2 = now.strftime("%d. %b %Y")
+    today4 = utils.half_semester(now)
+    prefix  = "cache/" + utils.half_semester_filename(now) + "-"
+    oprefix = utils.half_semester_filename(now)
 
-    fields    = utils.json_read("cache/" + filedate + "-inferno.json")
+    fields = utils.json_read(prefix + "inferno.json")
     #nebenfach = utils.json_read("nebenfach.json")
-    #dates     = utils.json_read("cache/18-dates.json")
-    #details   = utils.json_read("cache/18-details.json")
 
 #    back = groupby(((course, major +" · "+ category)
 #            for major,v in nebenfach.items()
@@ -274,7 +255,7 @@ if __name__ == "__main__":
                     k.replace("B.Sc.", "Bachelor")
                      .replace("M.Sc.", "Master")
                      .replace(" (2015)", ""),
-                    today + "-" + filename(k) + ".html")
+                    oprefix + "-" + filename(k) + ".html")
                    for k in fields.keys()
                    if k.endswith(" (2015)")]
     simple_regulations = [(a,b,c) for a,b,c in regulations if b.endswith(" Informatik")]
@@ -293,59 +274,20 @@ if __name__ == "__main__":
       }))
 
     for regulation, regulation_short, href in regulations:
-        dates = utils.json_read("cache/" + filedate + "--" + filename(regulation) + ".json")
+        dates = utils.json_read(prefix + "-" + filename(regulation) + ".json")
         data = [clean(module_id, module, fields, regulation)
                 for module_id, module in dates.items()]
         data.sort(key=lambda x:(x['category'], x['id'])) # -int(x['credits'])
         with open("style.css") as f: css_style = f.read()
         js_data = json.dumps(data, indent=" ")
 
-    #      <!--
-    #      <div id="details-blabla" class="details active">
-
-    #      <!--
-    #      <input type="radio" name="fishy" value="1" id="input-categories" checked> Categories<br>
-    #      <input type="radio" name="fishy" value="0" id="input-times"> Times
-    #      -->
-
-    #      <div id=fishy-times>
-    #        <br/><br/>
-
-    #        {{#times}}
-    #        <div class="time-day">  
-    #          {{#value}}
-    #          <div class="time-minute">
-    #            {{#value}}
-    #            <span class="{{marked}}" title="{{title}} · {{category}}"
-    #                  style=text-decoration:underline>{{title_short}}</span> 
-    #            {{/value}}
-    #          </div>
-    #          {{/value}}
-    #        </div>
-    #        {{/times}}
-    #      </div>
-
-    #      Show: 
-    #      <label class=inline-label for=show-selected
-    #        ><input type="radio" name="fishy" value="0" id="show-selected" checked>
-    #        Only selected courses</label>
-    #      <label class=inline-label for=show-courses
-    #        ><input type="radio" name="fishy" value="1" id="show-courses">
-    #        Courses</label>
-
-    #    name = field.replace(".", "").replace("(", "").replace(")", "").replace("/", "").replace(" ", "")
-
-        #today = datetime.datetime.today().strftime("%d. %b. %Y")
-
         with open("gh-pages/" + href, "w") as f:
             f.write(pystache.render(page_tmpl, {
-                "today": today,
+                "today":  today,
                 "today2": today2,
-                "today3": today3,
                 "today4": today4,
                 "regulation_short": regulation_short,
 
-                "today": today,
                 "js_data": js_data,
                 "css_style": css_style,
             }))
