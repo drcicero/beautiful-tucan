@@ -20,7 +20,7 @@ $ cp -v -r gh-pages/* ~/.public_html/beautiful-tucan/
 Dependencies:
 * bs4 (beautifulsoup) is MIT licenced.
 * mechanicalsoup is MIT licenced.
-* pystache is MIT licence.
+* pystache is MIT licenced.
 
 This code is based on tucan-crawler by davidgengenbach, which is GPL licenced.
 
