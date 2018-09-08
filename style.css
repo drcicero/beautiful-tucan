@@ -5,10 +5,11 @@ small {color:#888; font-size:.9em; line-height:1em;}
 
 */
 
-html {font:14px/1.4 /*'EB Garamond', Garamond, Georgia, */ Roboto, sans-serif;}
+html {font:14px/1.5 sans-serif;}
 body {margin:auto; max-width:40em; padding:1em; padding-top:1em;}
 hidden {display:none}
 h1 {font-size:2em; line-height:1.25}
+p {margin:3em 0}
 
 /* details summary */
 summary::-webkit-details-marker {display:none} summary {list-style-type:none}

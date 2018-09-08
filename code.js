@@ -258,7 +258,7 @@ function courseDiv(course) {
   if (course.weekly && course.weekly.length > 0)
     details += "<b>" + course.first_to_last + "</b>"
       + course.weekly.map( x =>
-          "* " + x.count +"x "+ x.day +" "+ x.start +" - "+ x.end +" ("+ x.room +")"
+          "* " + x.count +"x "+ format_weekly(x) +" ("+ x.room +")"
         ).join("<br/>")
       + "<br/><br/>";
   details += "<b>Kurse</b><br/>" + uniq(course.content.map(x=>x.title)).join("<br/>\n")+"<br/><br/>"

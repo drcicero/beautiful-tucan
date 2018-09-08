@@ -1,243 +1,21 @@
 import collections, itertools, json, datetime, locale, re
-import utils
-
 import bs4, pystache
 from bs4.element import Tag as Bs4Tag
 
-#locale.setlocale(locale.LC_TIME, "de_DE.UTF-8") # german month names
+import utils
 
-#def flatten(it, path = ()):
-#    for k, v in enumerate(it):
-#        if "details" in v:
-#            result = merge_dict({"path": path}, v)
-#            del result["children"]
-#            # print(path, v["title"])
-#            yield result
-#        if isinstance(v["children"], list):
-#            yield from flatten(v["children"], path + (v["title"],))
-
-
-def simplify_path(path):
-    replacements = [
-        # PO 2009
-        ("Grundstudium", "Pflicht"),
-        ("Kanonikfächer \| Kanonische Einführungsveranstaltungen", "Pflicht"),
-        ("Wahlpflichtbereich \| Wahlpflichtbereich A", "Wahl-A"),
-        ("Wahlpflichtbereich \| Wahlpflichtbereich B", "Wahl-B"),
-        ("Projekte, Projektpraktika und ähnliche Veranstaltungen", "B. Praktika"),
-        (" \| [^ ]* Prüfungsleistungen", ""),
-        (" \| [^|]* \| ([A-Z]*) Studienleistungen \| \\1 (.*)$", " | \\2 /// \\1 "),
-        # PO 2015
-        ("Pflichtbereich", "BSc Pflicht"),
-        ("Wahlbereich \| Studienleistungen", "BSc Wahl"),
-        ("Vorgezogene Masterleistungen \| Vorgezogene Masterleistungen der Informatik \|", "MSc"),
-        ("Wahlbereich Fachprüfungen", "Wahl-A"),
-        ("Wahlbereich Studienleistungen", "Wahl-B"),
-        (" \(sp-FB20\)", ""),
-        ("Praktika, Projektpraktika, ähnliche LV", "B. Praktika"),
-        ("Praktika, Projektpraktika und ähnliche Veranstaltungen", "B. Praktika"),
-        ("Fachübergreifende Lehrveranstaltungen", "C. Fachübergreifende Lehrveranstaltungen"),
-        ("Wahlbereiche \| ", ""),
-        # common
-        ("Praktika in der Lehre", "B. Praktika in der Lehre"),
-        ("Praktikum in der Lehre", "B. Praktika in der Lehre"),
-        ("Module der ", ""),
-        ("Fachübergreifend \| Gesamtkatalog aller Module des Sprachenzentrums", "Sprachzentrum"),
-        (" \| ([^|]*) \| \\1", " | \\1 "),
-        ("Projektpraktika", "X Praktika"),
-        ("Projekte", "B. Praktika"),
-        ("Seminare", "B. Seminare")
-    ]
-    for match, result in replacements:
-        path = re.sub(match, result, path)
-    if path and not path[:3] in ["A.", "B. ", "C. "]:
-        path = "A. " + path
-    return path
-
-
-def clean(module_id, entry, fields, regulation):
-    def get_first(title: str, entry=entry):
-        tmp = [detail for detail in entry["details"] if detail["title"] == title]
-        return tmp[0].get('details') if len(tmp)>0 else None
-
-    def get_abbr(title):
-      # choose the best one of three abbreviations
-      abbr1 = "".join(i for i in title if i.isupper() or i.isnumeric())
-      abbr2 = "".join(i[0] if len(i)>0 else "" for i in title.strip().split(" "))
-      abbr3 = (get_first("Anzeige im Stundenplan") or "").strip()
-      abbrs = ( [abbr3, abbr1, abbr2]
-                if 1 < len(abbr3) < 6 else
-                sorted((i for i in (abbr1, abbr2)), key=lambda x: abs(3.6 - len(x))) )
-      return abbrs[0]
-
-    # module_id, title, abbr
-    sort_title = entry['content'][0]['title'][10:]
-    sort, title = sort_title.split(" ", 1)
-    title = title or get_first("Titel") or ""
-    module_id = module_id or get_first("TUCaN-Nummer") or ""
-    title = utils.remove_bracketed_part(title)
-    title = utils.remove_bracketed_part(title)
-    title = utils.roman_to_latin_numbers(title)
-    title = title.replace("Praktikum in der Lehre - ", "")
-    abbr = get_abbr(title)
-
-    # reorder details
-    later_titles = {
-        "Unterrichtssprache", "Sprache",
-        "Min. | Max. Teilnehmerzahl",
-
-        "TUCaN-Nummer", "Kürzel", "Anzeige im Stundenplan", # "Titel",
-        "Lehrveranstaltungsart", "Veranstaltungsart",
-        "Turnus", "Startsemester",
-        "SWS", "Semesterwochenstunden",
-        "Diploma Supplement",
-        "Modulausschlüsse", "Modulvoraussetzungen",
-        "Studiengangsordnungen", "Verwendbarkeit", "Anrechenbar für",
-        "Orga-Einheit", "Gebiet", "Fach",
-        "Modulverantwortliche", # "Lehrende",
-
-        "Dauer",
-        "Anzahl Wahlkurse",
-        "Notenverbesserung nach §25 (2)",
-        "Wahlmöglichkeiten",
-        "Credits",
-        "Kurstermine",
-    }
-    first = [i for i in entry["details"] if i["title"] not in later_titles]
-    later = [i for i in entry["details"] if i["title"] in later_titles]
-    entry["details"] = (
-        first
-      + [{"details":"<br><hr><b>Andere Angaben aus Tucan und Inferno</b><br>", "title":""}]
-      + later
-    )
-    for detail in entry["details"]:
-        if detail["details"].strip() != "":
-            detail["details"] += "<br>"
-        if detail['title'] == "Studiengangsordnungen":
-            detail['details'] = detail['details'].replace("<br/><br/>", "<br/>")
-
-    #get last name of owner
-    import collections as col
-    owner = "; ".join(col.OrderedDict(
-      (x,1) for entry in entry['content']
-            for x in (get_first("Lehrende", entry) or
-            get_first("Modulverantwortliche", entry)).split("; ")
-    ).keys()) or "???"
-    short_owner = "; ".join(i.split()[-1] for i in owner.split("; "))
-
-    # 'M.Sc. Informatik (2015)'
-    simplified_path = simplify_path(fields[regulation].get(module_id, ["",""])[0])
-    category = (
-#      get_first("Gebiet") or get_first("Orga-Einheit") or get_first("Veranstaltungsart") or
-      "B. Oberseminare"
-      if simplified_path == "B. Seminare" and entry["credits"] == 0 else
-      simplified_path or {
-        "01": "C. Nebenfach FB 01 (Wirtschaft & Recht; Entrepeneurship)",
-        "02": "C. Nebenfach FB 02 (Philosophie)",
-        "03": "C. Nebenfach FB 03 (Humanw.; Sportw.)",
-        "04": "C. Nebenfach FB 04 (Logik; Numerik; Optimierung; Stochastik)",
-        "05": "C. Nebenfach FB 05 (Elektrow.; Physik)",
-        "11": "C. Nebenfach FB 11 (Geow.)",
-        "13": "C. Nebenfach FB 13 (Bauinformatik; Verkehr)",
-        "16": "C. Nebenfach FB 16 (Fahrzeugtechnik)",
-        "18": "C. Nebenfach FB 18 (Elektrotechnik)",
-        "41": "C. Sprachkurse",
-      }.get(module_id[:2]) or
-      "0. Pflichtveranstaltungen"
-    )
-    if "B.Sc." in regulation:
-      category = category.replace("Nebenfach", "Fachübergreifend")
-
-    dates   = {i for item in entry['content'] for i in item.get('dates',   [])}
-    uedates = {i for item in entry['content'] for i in item.get('uedates', [])}
-    if len(uedates) == 1:
-      dates |= set(["\t".join(y.split("\t")[:-1])+"\tÜbungstunde"+"\t"+str(i) for i in range(15)
-                   for y in uedates])
-    else: 
-      dates |= set(["\t".join(y.split("\t")[:-1])+"\tÜbung"+"\t"+str(i) for i in range(15)
-                   for y in uedates])
-    uedates = list(uedates)
-#      print(title)
-#    elif len(uedates) > 1:
-#      uedates = list(sorted({(parse_date(item.split("\t")).strftime("%Y-%m-%d"), *item.split("\t")[1:]) for item in uedates}))
-#    else:
-#      uedates = list(uedates)
-    dates = clean_dates(dates)
-    result = utils.merge_dict(entry, dates)
-    result = utils.merge_dict(result, {
-        "id": module_id, "uedates": uedates,
-        "title": title, "title_short": abbr,
-        "owner": owner, "owner_short": short_owner,
-        "credits": str(entry["credits"]).zfill(2),
-        'category': category,
-    })
-#    del result["path"]
-    return result
-
-
-def clean_dates(item):
-    def parse_date(string):
-      day, start, end, room = string.split("\t", 3)
-      room = room.split("\t")[0]
-      day   = datetime.datetime.strptime(day, "%Y-%m-%d")
-      start = utils.parse_hm(start)
-      end   = utils.parse_hm(end)
-      return [day, start, end, room]
-
-    dates = list(sorted(parse_date(i) for i in item))
-
-    # first, last event
-    first = last = first_to_last = ""
-    if len(dates) > 0:
-        first = dates[ 0][0].strftime("%Y-%m-%d")
-        last  = dates[-1][0].strftime("%Y-%m-%d")
-        first_to_last = "Termine liegen von %s bis %s:<br>" % (
-            dates[ 0][0].strftime("%d. %b"),
-            dates[-1][0].strftime("%d. %b"),
-        )
-
-    # how many weeks does the event repeat?
-    counted = collections.Counter( (i[0].weekday(), i[1], i[2]) for i in dates )
-    counted = [{"count": count, "day": v[0], "start": v[1], "end": v[2]}
-              for v, count in counted.items()]
-
-    # add rooms of weekly events together
-    for d in counted:
-        roomlst = [room for i in dates
-                        if (i[0].weekday(), i[1], i[2]) == (d['day'], d['start'], d['end'])
-                        for room in i[3].split(",")]
-        d['room'] = ", ".join(set(roomlst))
-
-    counted.sort(key=lambda a: (-a["count"], a["day"]))
-    return {
-        "dates": [(i[0].strftime("%Y-%m-%d"), i[1:]) for i in dates], "weekly": counted,
-        "first_to_last": first_to_last, "first": first, "last": last,
-    }
-
-def pipe(init, *args):  # destroys typing info :/ , should better be a macro
-    value = init
-    for f in args: value = f(value)
-    return value
-
-def groupby(iterator, key):
-    import itertools
-    lst = sorted(iterator, key=key)
-    return itertools.groupby(lst, key)
-
-if __name__ == "__main__":
-    import sys
-
-    now    = datetime.datetime.today() # datetime.datetime(2018, 9, 5)
-    today  = now.strftime("%Y-%m")
-    today2 = now.strftime("%d. %b %Y")
-    today4 = utils.half_semester(now)
+def main():
+    now     = datetime.datetime.today() # datetime.datetime(2018, 9, 5)
+    today   = now.strftime("%Y-%m")
+    today2  = now.strftime("%d. %b %Y")
+    today4  = utils.half_semester(now)
     prefix  = "cache/" + utils.half_semester_filename(now) + "-"
     oprefix = utils.half_semester_filename(now)
 
-    fields = utils.json_read(prefix + "inferno.json")
+    fields  = utils.json_read(prefix + "inferno.json")
     #nebenfach = utils.json_read("nebenfach.json")
 
-#    back = groupby(((course, major +" · "+ category)
+#    back = utils.groupby(((course, major +" · "+ category)
 #            for major,v in nebenfach.items()
 #            for category,v in v.items()
 #            for module in v
@@ -291,4 +69,196 @@ if __name__ == "__main__":
                 "js_data": js_data,
                 "css_style": css_style,
             }))
+
+
+def clean(module_id, entry, fields, regulation):
+    def get_first(title: str, entry=entry):
+        tmp = [detail for detail in entry["details"] if detail["title"] == title]
+        return tmp[0].get('details') if len(tmp)>0 else None
+
+    def get_abbr(title):
+      # choose the best one of three abbreviations
+      abbr1 = "".join(i for i in title if i.isupper() or i.isnumeric())
+      abbr2 = "".join(i[0] if len(i)>0 else "" for i in title.strip().split(" "))
+      abbr3 = (get_first("Anzeige im Stundenplan") or "").strip()
+      abbrs = ( [abbr3, abbr1, abbr2]
+                if 1 < len(abbr3) < 6 else
+                sorted((i for i in (abbr1, abbr2)), key=lambda x: abs(3.6 - len(x))) )
+      return abbrs[0]
+
+    # module_id, title, abbr
+    sort_title = entry['content'][0]['title'][10:]
+    sort, title = sort_title.split(" ", 1)
+    title = title or get_first("Titel") or ""
+    module_id = module_id or get_first("TUCaN-Nummer") or ""
+    title = utils.remove_bracketed_part(title)
+    title = utils.remove_bracketed_part(title)
+    title = utils.roman_to_latin_numbers(title)
+    title = title.replace("Praktikum in der Lehre - ", "")
+    abbr = get_abbr(title)
+
+    # reorder details
+    later_titles = {
+        #"Unterrichtssprache", "Sprache",
+        "Min. | Max. Teilnehmerzahl",
+
+        "TUCaN-Nummer", "Kürzel", "Anzeige im Stundenplan", # "Titel",
+        "Lehrveranstaltungsart", "Veranstaltungsart",
+        "Turnus", "Startsemester",
+        "SWS", "Semesterwochenstunden",
+        "Diploma Supplement",
+        "Modulausschlüsse", "Modulvoraussetzungen",
+        "Studiengangsordnungen", "Verwendbarkeit", "Anrechenbar für",
+        "Orga-Einheit", "Gebiet", "Fach",
+        "Modulverantwortliche", # "Lehrende",
+
+        "Dauer",
+        "Anzahl Wahlkurse",
+        "Notenverbesserung nach §25 (2)",
+        "Wahlmöglichkeiten",
+        "Credits",
+        "Kurstermine",
+    }
+    early = [i for i in entry["details"] if i["title"] not in later_titles]
+    late  = [i for i in entry["details"] if i["title"] in later_titles]
+    entry["details"] = (
+        early
+      + [{"details":"<br><hr><b>Andere Angaben aus Tucan und Inferno</b><br>", "title":""}]
+      + late
+    )
+    for detail in entry["details"]:
+        if detail["details"].strip() != "":
+            detail["details"] += "<br>"
+        if detail['title'] == "Studiengangsordnungen":
+            detail['details'] = detail['details'].replace("<br/><br/>", "<br/>")
+
+    # last name of owners
+    owner = "; ".join(collections.OrderedDict(
+      (x,1) for entry in entry['content']
+            for x in (get_first("Lehrende", entry) or
+            get_first("Modulverantwortliche", entry)).split("; ")
+    ).keys()) or "???"
+    short_owner = "; ".join(i.split()[-1] for i in owner.split("; "))
+
+    # category
+    category = fields[regulation].get(module_id, ["",""])[0]
+    category = clean_category(category)
+    if category == "C. Fachübergreifende Lehrveranstaltungen": category = ""
+    category = (
+      "B. Oberseminare" if category == "B. Seminare" and entry["credits"] == 0 else
+      category or {
+        "01": "C. Nebenfach FB 01 (Wirtschaft & Recht; Entrepeneurship)",
+        "02": "C. Nebenfach FB 02 (Philosophie)",
+        "03": "C. Nebenfach FB 03 (Humanw.; Sportw.)",
+        "04": "C. Nebenfach FB 04 (Logik; Numerik; Optimierung; Stochastik)",
+        "05": "C. Nebenfach FB 05 (Elektrow.; Physik)",
+        "11": "C. Nebenfach FB 11 (Geow.)",
+        "13": "C. Nebenfach FB 13 (Bauinformatik; Verkehr)",
+        "16": "C. Nebenfach FB 16 (Fahrzeugtechnik)",
+        "18": "C. Nebenfach FB 18 (Elektrotechnik)",
+        "41": "C. Sprachkurse",
+      }.get(module_id[:2], "0. Pflichtveranstaltungen")
+    )
+    if "B.Sc." in regulation:
+      category = category.replace("Nebenfach", "Fachübergreifend")
+
+    # dates
+    dates   = {i for item in entry['content'] for i in item.get('dates',   [])}
+    uedates = {i for item in entry['content'] for i in item.get('uedates', [])}
+    uebung  = "Übung" if len(uedates) != 1 else "Übungsstunde"
+    dates |= set("\t".join(y.split("\t")[:-1])+"\t"+uebung+"\t"+str(i)
+                 for i in range(15) for y in uedates)
+    uedates = list(uedates)
+    dates = clean_dates(dates)
+
+    # result
+    result = utils.merge_dict(entry, dates)
+    result = utils.merge_dict(result, {
+        "id": module_id, "uedates": uedates,
+        "title": title, "title_short": abbr,
+        "owner": owner, "owner_short": short_owner,
+        "credits": str(entry["credits"]).zfill(2),
+        'category': category,
+    })
+    return result
+
+
+def clean_category(path):
+    replacements = [
+        # PO 2009
+        ("Grundstudium", "Pflicht"),
+        ("Kanonikfächer \| Kanonische Einführungsveranstaltungen", "Pflicht"),
+        ("Wahlpflichtbereich \| Wahlpflichtbereich A", "Wahl-A"),
+        ("Wahlpflichtbereich \| Wahlpflichtbereich B", "Wahl-B"),
+        ("Projekte, Projektpraktika und ähnliche Veranstaltungen", "B. Praktika"),
+        (" \| [^ ]* Prüfungsleistungen", ""),
+        (" \| [^|]* \| ([A-Z]*) Studienleistungen \| \\1 (.*)$", " | \\2 /// \\1 "),
+        # PO 2015
+        ("Pflichtbereich", "BSc Pflicht"),
+        ("Wahlbereich \| Studienleistungen", "BSc Wahl"),
+        ("Vorgezogene Masterleistungen \| Vorgezogene Masterleistungen der Informatik \|", "MSc"),
+        ("Wahlbereich Fachprüfungen", "Wahl-A"),
+        ("Wahlbereich Studienleistungen", "Wahl-B"),
+        (" \(sp-FB20\)", ""),
+        ("Praktika, Projektpraktika, ähnliche LV", "B. Praktika"),
+        ("Praktika, Projektpraktika und ähnliche Veranstaltungen", "B. Praktika"),
+        ("Fachübergreifende Lehrveranstaltungen", "C. Fachübergreifende Lehrveranstaltungen"),
+        ("Wahlbereiche \| ", ""),
+        # common
+        ("Praktika in der Lehre", "B. Praktika in der Lehre"),
+        ("Praktikum in der Lehre", "B. Praktika in der Lehre"),
+        ("Module der ", ""),
+        ("Fachübergreifend \| Gesamtkatalog aller Module des Sprachenzentrums", "Sprachzentrum"),
+        (" \| ([^|]*) \| \\1", " | \\1 "),
+        ("Projektpraktika", "X Praktika"),
+        ("Projekte", "B. Praktika"),
+        ("Seminare", "B. Seminare")
+    ]
+    for match, result in replacements:
+        path = re.sub(match, result, path)
+    if path and not path[:3] in ["A.", "B. ", "C. "]:
+        path = "A. " + path
+    return path
+
+
+def clean_dates(item):
+    def parse_date(string):
+      day, start, end, room = string.split("\t", 3)
+      room = room.split("\t")[0]
+      day   = datetime.datetime.strptime(day, "%Y-%m-%d")
+      start = utils.parse_hm(start)
+      end   = utils.parse_hm(end)
+      return [day, start, end, room]
+
+    dates = list(sorted(parse_date(i) for i in item))
+
+    # first, last event
+    first = last = first_to_last = ""
+    if len(dates) > 0:
+        first = dates[ 0][0].strftime("%Y-%m-%d")
+        last  = dates[-1][0].strftime("%Y-%m-%d")
+        first_to_last = "Termine liegen von %s bis %s:<br>" % (
+            dates[ 0][0].strftime("%d. %b"),
+            dates[-1][0].strftime("%d. %b"),
+        )
+
+    # how many weeks does the event repeat?
+    counted = collections.Counter( (i[0].weekday(), i[1], i[2]) for i in dates )
+    counted = [{"count": count, "day": v[0], "start": v[1], "end": v[2]}
+              for v, count in counted.items()]
+
+    # add rooms of weekly events together
+    for d in counted:
+        roomlst = [room for i in dates
+                        if (i[0].weekday(), i[1], i[2]) == (d['day'], d['start'], d['end'])
+                        for room in i[3].split(",")]
+        d['room'] = ", ".join(set(roomlst))
+
+    counted.sort(key=lambda a: (-a["count"], a["day"]))
+    return {
+        "dates": [(i[0].strftime("%Y-%m-%d"), i[1:]) for i in dates], "weekly": counted,
+        "first_to_last": first_to_last, "first": first, "last": last,
+    }
+
+if __name__ == "__main__": main()
 

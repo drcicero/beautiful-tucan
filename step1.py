@@ -9,7 +9,7 @@ import utils
 import bs4                  # html parsing
 import mechanicalsoup as ms # GET, POST, cookie requests
 
-POOLSIZE = 16 #  8  -->  ~6min
+POOLSIZE = 8 #  8  -->  ~6min
 
 SSO_URL     = "https://sso.tu-darmstadt.de"
 TUCAN_URL   = "https://www.tucan.tu-darmstadt.de"
@@ -57,6 +57,15 @@ def main():
 # download
 
 def download_inferno(credentials, roles):
+    def doit(kv):
+        k, v = kv
+        print("  * ", k)
+        urlopt = "?form=&regularity=" + v
+        page = browser.get(INFERNO_URL + form['action'] + urlopt)
+        # group entries hierarchically
+        toplevel = page.soup.select_one("#plan div > ul li")
+        return (k, dict(flatten_inferno(toplevel, [])))
+
     print("\ninferno")
     browser = log_into_sso(credentials)
     # make new plan, with master computer science 2015, in german
@@ -66,16 +75,8 @@ def download_inferno(credentials, roles):
     form = page.soup.form
     options = [(i.text, i['value'])
                for i in form.select("#_regularity_id option")]
-    #print("options", options)
-    result = {}
-    for k,v in options:
-      print("  * ", k)
-      urlopt = "?form=&regularity=" + v
-      page = browser.get(INFERNO_URL + form['action'] + urlopt)
-      # group entries hierarchically
-      toplevel = page.soup.select_one("#plan div > ul li")
-      result[k] = dict(flatten_inferno(toplevel, []))
-    return result
+    with mp.Pool(POOLSIZE) as p:
+      return dict(p.map(doit, options))
 
 def download_from_inferno(credentials, module_ids):
     print("\nfrom inferno" +" " + str(len(module_ids)))
@@ -122,9 +123,10 @@ def download_tucan_vv_pages(credentials, courses):
 
 def inner_join(courses, modules):
     modules = {item['module_id']:item for item in modules} # for module_id in item['modules']}
-    courses = ((module_id, item) for item in courses for module_id in item['modules']
+    courses = ((module_id, item) for item in courses
+                                 for module_id in item['modules']
                                  if module_id in modules)
-    return {k:merge(g, modules[k]) for k,g in utils.groupby(courses, key=lambda x:x[0])}
+    return {k:merge_course(g, modules[k]) for k,g in utils.groupby(courses, key=lambda x:x[0])}
 
 def flatten_inferno(item, path):
     path = path + [item.h2.text.replace("\t", "").replace("\n", "")]
@@ -163,7 +165,7 @@ def get_tucan_page(browser, title_url, session_key, i, maxi):
     modules = blame("no modules for '"+title+"'", lambda: extract_tucan_course_modules(page.soup)) or []
     return utils.merge_dict(details, {'title':title, 'dates':dates, 'uedates':uedates, 'modules':modules}) # 'link':url,
 
-def merge(courses, module):
+def merge_course(courses, module):
     courses = [i[1] for i in courses]
 
     # credits
@@ -225,7 +227,7 @@ def extract_tucan_course_modules(soup):
     tables = soup.select('table.tb')
     table = get_table_with_caption(tables, 'Enthalten in Modulen')
     if not table: return
-    return [i.text.strip()[:10] for i in table.select("td")[1:]]
+    return list(sorted(set(i.text.strip()[:10] for i in table.select("td")[1:])))
 
 def extract_tucan_dates(soup):
     tables = soup.select('table.tb')
@@ -317,6 +319,7 @@ class ParallelCrawler():
             dictionary that maps the keys to the values. """
         def error_cb(exc):
             print("")
+            traceback.print_exc()
             raise exc
         def cb(result):
             try:
@@ -324,6 +327,7 @@ class ParallelCrawler():
                     self._result[result[0]] = result[1]
                     self._finished += 1
                     if self._ready == self._finished: self._event.set()
+                    progress(self._finished, self._limit or self._ready)
             except:
                 print("")
                 traceback.print_exc()
@@ -332,7 +336,6 @@ class ParallelCrawler():
             if args[0] in self._result: return
             self._ready += 1
             self._result[args[0]] = None
-            progress(self._finished, self._limit or self._ready)
         self._pool.apply_async(func, args, callback=cb, error_callback=error_cb)
     def get(self):
         self._event.wait()
@@ -347,14 +350,11 @@ def get_credentials():
 
 def _get_config(variable, default=None, is_password=False):
     value = os.environ.get(variable, default)
-    if value is None:
-        if is_password:
-            value = getpass.getpass(variable + ": ")
-        else:
-            sys.stderr.write(variable + ": ")
-            sys.stderr.flush()
-            value = input()
-    return value
+    if value is not None: return value
+    if is_password:       return getpass.getpass(variable + ": ")
+    sys.stderr.write(variable + ": ")
+    sys.stderr.flush()
+    return input()
 
 def _get_redirection_link(page):
     return TUCAN_URL + page.soup.select('a')[2].attrs['href']

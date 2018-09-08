@@ -6,49 +6,69 @@
   <script src="code.js"></script>
 </head><body class=welcome>
 
-<h1 style=font-size:2rem;>Inoffizieller Wochenplaner<br>Informatik TU Darmstadt</h1>
+  <h1 style=font-size:2rem;>Inoffizieller Wochenplaner<br>Informatik TU Darmstadt</h1>
 
-<br/>
-<p>Verfügbare Listen:</p>
-<ul>{{#list}}<li><a href="{{href}}">{{title}}</a>{{/list}}</ul>
-
-<br/>
+  <br>
+  Verfügbare Listen:
+  <ul>{{#list}}<li><a href="{{href}}">{{title}}</a>{{/list}}</ul>
+  
+  <small>
+  Auf Nachfrage, habe ich es auch mal für die speziellen Mastergänge ausprobiert...
+  <ul>{{#experimentallist}}<li><a href="{{href}}">{{title}}</a>{{/experimentallist}}</ul>
+  </small>
 
   <p>
+    UPDATES:<br>
+    07.09.2018 Kleingruppen/Übungsgruppen werden auch angezeigt.<br>
+    06.09.2018 Nebenfach FB 01 war fälschlicherweise nur als Entrepeneurship vermerkt,
+    jetzt wird 'Wirtschaft und Recht' auch erwähnt.<br>
+    05.09.2018 Spezielle Studienordnungen werden auch angezeigt.<br>
+    04.09.2018 Diese Webseite wurde veröffentlicht.
+
+  </p><p>
     <b>Welche und wie viele Kurse muss ich belegen?</b><br>
     Das ist in der entsprechenden <a href="https://www.informatik.tu-darmstadt.de/studium_fb20/im_studium/formulare_und_dokumente/ordnungen/index.de.jsp">Prüfungsordnung</a> geregelt.
     Auch das <a href="http://inferno.dekanat.informatik.tu-darmstadt.de">Prüfungsplantool Inferno</a> kann helfen.
     Einen groben Überblick bekommt man schon auch über die Bilder auf den folgende Seiten: <a href="https://www.tu-darmstadt.de/studieren/abschluesse/bachelor/informatik-bsc.de.jsp">Studienplan Bachelor</a>
     bzw. den <a href="https://www.tu-darmstadt.de/studieren/abschluesse/master/informatik-msc.de.jsp">Studienplan Master</a>,
-    dort werden aber Feinheiten wie die begrenzte Anzahl von Kurs pro Lehrveranstaltungsart im Wahlbereich B genannt.
+    dort werden aber Feinheiten wie zb die begrenzte Anzahl von Kurs pro Lehrveranstaltungsart im Wahlbereich B genannt.
     Im Master müsst ihr auch ein Nebenfach wählen. Wie viele und welche Kurse dort zu wählen sind findet man unter
     <a href=https://www.informatik.tu-darmstadt.de/studium_fb20/im_studium/studiengaenge_liste/nebenfaecher.de.jsp>Informationen zu Nebenfächern</a>.
-    <br><br>
 
+  </p><p>
     <b>Wie melde ich mich für eine Veranstaltung an?</b><br>
     Das geht in <a href=https://www.tucan.tu-darmstadt.de>Tucan</a> im Menü unter 'Tucan > Veranstaltungen > Anmelden > ...'.
     Achtung, bei vielen Seminaren, Praktikas, etc. muss man sich zusätzlich per Email anmelden und zu einem in Tucan nicht gelisteten Kick-Off-Treffen kommen.
     Um diese Informationen zu finden, kann es hilfreich sein nach 'VERANSTALTUNGSNAME tu darmstadt' zu googlen.
-    <br><br>
 
+  </p><p>
     <b>Woher stammen die Daten?</b><br>
-    Die Liste der verfügbaren Veranstaltungen und deren Termine werden aus dem Vorlesungsverzeichnis bei <a href=https://www.tucan.tu-darmstadt.de>Tucan</a> (bei 'Tucan > Vorlesungsverzeichnis > Alle Kurse') gesammelt.
-    Danach werden die passenden Credit-Points und die Veranstaltungsdetails über das <a href="http://inferno.dekanat.informatik.tu-darmstadt.de">Inferno Prüfungsplantool</a> nachgeschlagen. 
-    <br><br>
+    Jede Veranstaltung hat eine Beschreibung, Termine und gehört zu einem Modul.
+    Diese Veranstaltungesdaten werden aus dem neusten öffentlichen Vorlesungsverzeichnis bei
+    <a href=https://www.tucan.tu-darmstadt.de>Tucan</a> (bei 'Tucan >
+    Vorlesungsverzeichnis > Alle Kurse') gesammelt.
+    Jedes Modul hat eine Beschreibung, Credit-Points und gehört zu einer Studienordnung.
+    Diese Moduldaten werden anschließend über das
+    <a href="http://inferno.dekanat.informatik.tu-darmstadt.de">Inferno Prüfungsplantool</a>
+    nachgeschlagen.
 
+  </p><p>
     <b>Wer hat diese Seite gemacht?</b><br>
     Schon seit dem ersten Semester wollte ich einen Überblick über die Kurse haben.
     Jetzt hab ich mich endlich dazu durch gerungen es umzusetzen.
     Diese Seite wurde von mir (David Richter) im Rahmen des
     'Projektpraktikums E-Learning' bei Guido Rößling entwickelt.
     Der Tucan-crawler basiert auf Code von David Gengenbach.
-    <br><br>
-    Kontakt und Feedback an David Richer unter <span style=color:blue id=contact>(Bitte aktivieren Sie JavaScript...)</span>.
+
+  </p><p>
+    Kontakt und Feedback an David Richer unter
+    <span style=color:blue id=contact>(Bitte aktivieren Sie JavaScript...)</span>.
+  </p>
 
 <script>
     var a="moc", b="liamg", c="ohk5shae6iot";
 //    contact.innerHTML += (" <style>.at:before {content:' AT '} .dot:before {content:' PUNKT '}</style> ");
-    contact.innerHTML == " " + c;
+    contact.innerHTML = " " + c;
     contact.innerHTML += " AT ";
     contact.innerHTML += " " + Array.from(b).reverse().join("");
     contact.innerHTML += " PUNKT ";
@@ -56,11 +76,6 @@
 </script>
   </p>
 </div><br>
-
-<details><summary>Experimentelle Listen:</summary>
-Auf Nachfrage, habe ich es auch mal für die speziellen Mastergänge ausprobiert, aber da ich keinen habe kann ich es nicht überprüfen, ob sie stimmen...
-<ul>{{#experimentallist}}<li><a href="{{href}}">{{title}}</a>{{/experimentallist}}</ul>
-</details>
 
 <!--  <script>-->
 <!--var pjax = new Pjax({-->
