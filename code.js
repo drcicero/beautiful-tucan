@@ -99,9 +99,9 @@ function saveState() {
 
     termine = (""
       + "Termine liegen zwischen "
-      + first.getDate() +"."+ first.getMonth() +"."+ first.getFullYear()
+      + first.getDate() +"."+ (first.getMonth()+1) +"."+ first.getFullYear()
       + " und "
-      + last.getDate() +"."+ last.getMonth() +"."+ last.getFullYear()
+      + last.getDate() +"."+ (last.getMonth()+1) +"."+ last.getFullYear()
       + ":<br/><table>" //+ mkRow(["", "Tag", "Zeit", "Kurs", "Raum"])
       + selectedweekly.join("")
       + "</table><br/>"
