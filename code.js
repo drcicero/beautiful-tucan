@@ -98,11 +98,11 @@ function saveState() {
       .map( x => x.substring(1) );
 
     termine = (""
-      + "Termine liegen zwischen "
+      + "(Termine liegen zwischen "
       + first.getDate() +"."+ (first.getMonth()+1) +"."+ first.getFullYear()
       + " und "
       + last.getDate() +"."+ (last.getMonth()+1) +"."+ last.getFullYear()
-      + ":<br/><table>" //+ mkRow(["", "Tag", "Zeit", "Kurs", "Raum"])
+      + "):<br/><table>" //+ mkRow(["", "Tag", "Zeit", "Kurs", "Raum"])
       + selectedweekly.join("")
       + "</table><br/>"
     );

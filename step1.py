@@ -92,7 +92,8 @@ def download_tucan_vv_search(credentials):
     (browser, page) = log_into_tucan(credentials)
     page = browser.get(TUCAN_URL + page.soup.select_one('li[title="Lehrveranstaltungssuche"] a')['href'])
     form = ms.Form(page.soup.select_one("#findcourse"))
-    semester_list = [(i.text, i['value']) for i in page.soup.select('#course_catalogue option')]
+    semester_list = [(i.text, i['value']) for i in page.soup.select('#course_catalogue option')
+       if "Wintersemester 2018" in i.text]
     print(semester_list[0])
     form['course_catalogue'] = semester_list[0][1] # neustes semester
     form['with_logo'] = '2' # we need two criteria to start search, this should show everything
