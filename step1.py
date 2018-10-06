@@ -116,7 +116,7 @@ def walk_tucan_list(browser, page):
 def download_tucan_vv_pages(credentials, courses):
     print("\ntucan-vv each page")
     (browser, page) = log_into_tucan(credentials)
-    session_key = page.url.split("-")[2][:-1]
+    session_key = page.url.split("-")[2] # "N000000000000001," == anonymous
     i, maxi = [0], len(courses)
     with mp.Pool(POOLSIZE) as p:
         return p.map(lambda title_url:
@@ -158,8 +158,18 @@ def get_inferno_page(browser, status, module_id):
 def get_tucan_page(browser, title_url, session_key, i, maxi):
     i[0] += 1; progress(i[0], maxi)
     title, url = title_url
-    url = url[:68] + session_key + url[84:]
+
+    # if the url list was stored in a previous session,
+    # we need to replace the outdated session key in the url with the new one:
+    parts = url.split("-")
+    parts[1] = session_key
+    url = "-".join(parts)
+
     page = browser.get(TUCAN_URL + url)
+#    print("\n=-=-=-=-=-=-=-= BEGIN",
+#          "\nwget --no-cookies --header \"Cookie: cnsc="+ browser.get_cookiejar().get('cnsc') +"\" \"" + TUCAN_URL + url + "\" -O test.html",
+#          "\n" + re.sub("[ ]+", " ", page.soup.text),
+#          "\n=-=-=-=-=-=-=-= END")
     dates   = blame("no dates for '"+title+"'",   lambda: extract_tucan_dates(page.soup)) or []
     uedates = blame("no uedates for '"+title+"'", lambda: extract_tucan_uedates(page.soup, title)) or []
     details = blame("no details for '"+title+"'", lambda: extract_tucan_details(page.soup)) or {}
@@ -225,14 +235,12 @@ def extract_tucan_details(soup):
                              for x in str(details_raw).split('<b>')[1:])
 
 def extract_tucan_course_modules(soup):
-    tables = soup.select('table.tb')
-    table = get_table_with_caption(tables, 'Enthalten in Modulen')
+    table = get_table_with_caption(soup, 'Enthalten in Modulen')
     if not table: return
     return list(sorted(set(i.text.strip()[:10] for i in table.select("td")[1:])))
 
 def extract_tucan_dates(soup):
-    tables = soup.select('table.tb')
-    course_dates = get_table_with_caption(tables, 'Termine')
+    course_dates = get_table_with_caption(soup, 'Termine')
     if not course_dates or len(course_dates.select('tr')) <= 2: return
     return parse_dates(course_dates)
 
@@ -246,10 +254,10 @@ def extract_tucan_uedates(soup, blamei):
     return [parse_uedate(i.select('p')[2].text, blamei)+"\t"+i.strong.text.strip()
             for i in course_dates.select('li') if i.select('p')[2].text.strip() != ""]
 
-def get_table_with_caption(tables, caption):
+def get_table_with_caption(soup, caption):
+    tables = soup.select('table.tb')
     try: return [table for table in tables if table.caption and caption in table.caption.text][0]
     except IndexError: pass
-
 
 def sanitize_details(details):
     replacements = [
@@ -374,7 +382,12 @@ def log_into_tucan(credentials):
     login_form['pass']    = credentials["password"]
     page = browser.submit(login_form, page.url)
 
-    if not 'refresh' in page.headers: print(page.soup)
+    if not 'refresh' in page.headers:
+      print(re.sub("\n+", "\n", re.sub("[ \t]+", " ", page.soup.text)))
+      print("===============")
+      print("This means you probably used the wrong username/password.")
+      print("===============")
+      sys.exit()
     redirected_url = "=".join(page.headers['REFRESH'].split('=')[1:])
     page = browser.get(TUCAN_URL + redirected_url)
     page = browser.get(_get_redirection_link(page))
