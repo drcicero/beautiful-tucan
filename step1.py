@@ -48,7 +48,9 @@ def main():
     modules = utils.json_read_or(prefix+'inferno-modules.json', get_inferno_modules)
     modules = inner_join(courses, modules)
     for regulation in regulations:
-        module_part = {k:v for k,v in modules.items() if regulation in str(v['regulations'])}
+        module_part = {k:v for k,v in modules.items()
+                           if regulation in str(v['regulations'])
+                           or k in inferno[regulation]}
         short_regulation = "".join(c for c in regulation if c.isalnum())
         utils.json_write(prefix+'-'+short_regulation+'.json', module_part)
     print()
