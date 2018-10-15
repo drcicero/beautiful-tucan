@@ -9,7 +9,7 @@ import utils
 import bs4                  # html parsing
 import mechanicalsoup as ms # GET, POST, cookie requests
 
-POOLSIZE = 8 #  8  -->  ~6min
+POOLSIZE = 8 #  8  -->  ~6min # achtung, bitte tucan server nicht überlasten :)
 
 SSO_URL     = "https://sso.tu-darmstadt.de"
 TUCAN_URL   = "https://www.tucan.tu-darmstadt.de"
@@ -21,10 +21,13 @@ warnings.simplefilter('ignore', UserWarning) # ignore bs4 warnings like:
 #    You should probably open this file and pass the filehandle into Beautiful Soup."""
 
 
+import dbm
+prefix = "cache/" + utils.half_semester_filename(datetime.datetime.today()) + "-"
+db = dbm.open(prefix+"+cache.db", "c")
+
 def main():
     if not os.path.exists('cache'): os.mkdir("cache")
 
-    prefix = "cache/" + utils.half_semester_filename(datetime.datetime.today()) + "-"
     cred = get_credentials()
 
     get_inferno   = lambda: download_inferno(cred, [])
@@ -50,7 +53,8 @@ def main():
     for regulation in regulations:
         module_part = {k:v for k,v in modules.items()
                            if regulation in str(v['regulations'])
-                           or k in inferno[regulation]}
+#                           or k in inferno[regulation]
+                           }
         short_regulation = "".join(c for c in regulation if c.isalnum())
         utils.json_write(prefix+'-'+short_regulation+'.json', module_part)
     print()
@@ -163,19 +167,26 @@ def get_tucan_page(browser, title_url, session_key, i, maxi):
 
     # if the url list was stored in a previous session,
     # we need to replace the outdated session key in the url with the new one:
+    oldurl = url
     parts = url.split("-")
     parts[1] = session_key
     url = "-".join(parts)
 
-    page = browser.get(TUCAN_URL + url)
+    if not oldurl in db:
+        response = browser.get(TUCAN_URL + url)
+        db[oldurl] = response.content
+        soup = response.soup
+    else:
+        soup = bs4.BeautifulSoup(db[oldurl])
+
 #    print("\n=-=-=-=-=-=-=-= BEGIN",
 #          "\nwget --no-cookies --header \"Cookie: cnsc="+ browser.get_cookiejar().get('cnsc') +"\" \"" + TUCAN_URL + url + "\" -O test.html",
 #          "\n" + re.sub("[ ]+", " ", page.soup.text),
 #          "\n=-=-=-=-=-=-=-= END")
-    dates   = blame("no dates for '"+title+"'",   lambda: extract_tucan_dates(page.soup)) or []
-    uedates = blame("no uedates for '"+title+"'", lambda: extract_tucan_uedates(page.soup, title)) or []
-    details = blame("no details for '"+title+"'", lambda: extract_tucan_details(page.soup)) or {}
-    modules = blame("no modules for '"+title+"'", lambda: extract_tucan_course_modules(page.soup)) or []
+    dates   = blame("no dates for '"+title+"'",   lambda: extract_tucan_dates(soup)) or []
+    uedates = blame("no uedates for '"+title+"'", lambda: extract_tucan_uedates(soup, title)) or []
+    details = blame("no details for '"+title+"'", lambda: extract_tucan_details(soup)) or {}
+    modules = blame("no modules for '"+title+"'", lambda: extract_tucan_course_modules(soup)) or []
     return utils.merge_dict(details, {'title':title, 'dates':dates, 'uedates':uedates, 'modules':modules}) # 'link':url,
 
 def merge_course(courses, module):
@@ -289,7 +300,7 @@ def sanitize_details(details):
         for r in reg_replacements:
             detail_text = re.sub(r[0], r[1], detail_text).strip()
         detail['details'] = detail_text
-    
+
     return {'details':[i for i in details if i['details'] != ""]}
 
 ################################################################################
