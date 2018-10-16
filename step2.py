@@ -12,6 +12,7 @@ def main():
     prefix  = "cache/" + utils.half_semester_filename(now) + "-"
     oprefix = utils.half_semester_filename(now)
 
+    pflicht = utils.json_read(prefix + "pre-tucan-pflicht.json")
     fields  = utils.json_read(prefix + "inferno.json")
     #nebenfach = utils.json_read("nebenfach.json")
 
@@ -141,11 +142,12 @@ def clean(module_id, entry, fields, regulation):
     short_owner = "; ".join(i.split()[-1] for i in owner.split("; "))
 
     # category
+    isos = entry['content'][0]['title'].split(" ")[0].endswith("-os")
     category = fields[regulation].get(module_id, ["",""])[0]
     category = clean_category(category)
     if category == "C. Fachübergreifende Lehrveranstaltungen": category = ""
     category = (
-      "B. Oberseminare" if category == "B. Seminare" and entry["credits"] == 0 else
+      "B. Oberseminare" if isos else # category == "B. Seminare" and entry["credits"] == 0
       category or {
         "01": "C. Nebenfach FB 01 (Wirtschaft & Recht; Entrepeneurship)",
         "02": "C. Nebenfach FB 02 (Philosophie)",
