@@ -124,8 +124,8 @@ function saveState() {
     subblock[t] = found;
   }
 
-  var box = main2.getClientRects()[0];
-  var width  = box.width-50;
+//  var box = main2.getClientRects()[0];
+  var width  = 100;
   var height = 480;
 
   main2.innerHTML = (""
@@ -157,10 +157,10 @@ function saveState() {
       + "<td style=width:20%>Fr</td>"
     + "</table>"
 
-    + "<div style='position:relative;background:#eee;width:"+width+"px;height:"+height+"px;font-size:0.8em'>"
+    + "<div style='position:relative;background:#eee;width:"+width+"%;height:"+height+"px;font-size:0.8em'>"
     + [0,1,2,3,4].map( d=> [...Array(7).keys()].map( h =>
         "<div class=box-c style="+
-        "'width:"+(width/5-10)+"px;top:"+(h*73.33)+"px;left:"+(d*width/5)+"px'></div>"
+        "'width:"+(width/5-2)+"%;top:"+(h*73.33)+"px;left:"+(d*width/5)+"%'></div>"
       ).join("")).join("\n")
 
     + selected.map( select => select.weekly.map( week => {
@@ -173,13 +173,13 @@ function saveState() {
       var left   = width/5      * week.day + lshift;
       var top    = height/12/60*10 * ((week.start[0]-8) * 60 + week.start[1])/ 10;
       var h      = height/12/60*10 * ((week.end[0]-8) * 60 + week.end[1])/ 10 - top;
-      var w      = width/5/parallelBlocks - 10;
+      var w      = width/5/parallelBlocks - 2;
       var desc = select.title_short + " - " + format_timespan(week) + "<br>"
                + week.room + "<br>findet " + week.count + " Mal statt"
              /*+ select.first.substr(8,2) +"."+ select.first.substr(5,2)*/;
       var class_ = " class='box-b box-b-" + select.id + " color-" + (data.indexOf(select)%colors.length) + "'";
       var title  = " title='" + desc.replace(/<br>/g, "\n") + "\n" + select.title + "'";
-      var style  = " style='position:absolute;top:"+top+"px;left:"+left+"px;width:"+w+"px;height:"+h+"px'";
+      var style  = " style='position:absolute;top:"+top+"px;left:"+left+"%;width:"+w+"%;height:"+h+"px'";
       return "<div" + class_ + title + style + ">" + desc + "</div>";
     } ).join("\n")).join("\n")
     + "</div><br>"

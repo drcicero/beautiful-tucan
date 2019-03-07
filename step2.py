@@ -131,13 +131,20 @@ def clean(module_id, entry, fields, regulation):
         if detail["details"].strip() != "":
             detail["details"] += "<br>"
         if detail['title'] == "Studiengangsordnungen":
-            detail['details'] = detail['details'].replace("<br/><br/>", "<br/>")
+            regs = [(x.split("(", 1))
+              for x in sorted(detail['details'].replace("<br>", "<br/>").split("<br/>"))
+              if x.strip()]
+            regs = utils.groupby(regs, key=lambda x:x[0])
+            regs = [(k,list(v)) for k,v in regs]
+#            print(detail['details'].replace("<br>", "<br/>").split("<br/>"))
+#            print([ k +"("+ ", ".join(i[:-1] for _,i in v) + ")" for k,v in regs])
+            detail['details'] = "<br/>".join(k+"("+", ".join(i[:-1] for _,i in sorted(v))+")" for k,v in regs) + "<br/>"
 
     # last name of owners
     owner = "; ".join(collections.OrderedDict(
       (x,1) for entry in entry['content']
             for x in (get_first("Lehrende", entry) or
-            get_first("Modulverantwortliche", entry)).split("; ")
+                      get_first("Modulverantwortlicher", entry) or "???").split("; ")
     ).keys()) or "???"
     short_owner = "; ".join(i.split()[-1] for i in owner.split("; "))
 

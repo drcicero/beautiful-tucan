@@ -19,6 +19,9 @@ TUCAN_URL      = "https://www.tucan.tu-darmstadt.de"
 INFERNO_URL    = "http://inferno.dekanat.informatik.tu-darmstadt.de"
 INFERNO_PREFIX = INFERNO_URL + "/pp/plans/modules/"
 
+TUCAN_THIS_SEMESTER_SEARCH_OPTION = "Sommersemester 2019"
+#TUCAN_THIS_SEMESTER_SEARCH_OPTION = "Wintersemester 2018"
+
 prefix = "cache/" + utils.half_semester_filename(datetime.datetime.today()) + "-"
 db = dbm.open(prefix+"+cache.db", "c")
 
@@ -26,6 +29,7 @@ def main():
     if not os.path.exists('cache'): os.mkdir("cache")
 
     cred = get_credentials()
+    print("start")
 
     get_inferno     = lambda: download_inferno(cred, [])
     get_pre_tucan_p = lambda: download_tucan_vv_pflicht(cred)
@@ -105,7 +109,7 @@ def download_tucan_vv_search(credentials):
     page = browser.get(TUCAN_URL + page.soup.select_one('li[title="Lehrveranstaltungssuche"] a')['href'])
     form = ms.Form(page.soup.select_one("#findcourse"))
     semester_list = [(i.text, i['value']) for i in page.soup.select('#course_catalogue option')
-       if "Wintersemester 2018" in i.text]
+       if TUCAN_THIS_SEMESTER_SEARCH_OPTION in i.text]
     print(semester_list[0])
     form['course_catalogue'] = semester_list[0][1] # neustes semester
     form['with_logo'] = '2' # we need two criteria to start search, this should show everything
