@@ -9,11 +9,11 @@ def main():
     today   = now.strftime("%Y-%m")
     today2  = now.strftime("%d. %b %Y")
     today4  = utils.half_semester(now)
-    prefix  = "cache/" + utils.half_semester_filename(now) + "-"
-    oprefix = utils.half_semester_filename(now)
+    prefix  = "cache/" # + utils.half_semester_filename(now) + "-"
+    folder  = "gh-pages/"
 
     pflicht = utils.json_read(prefix + "pre-tucan-pflicht.json")
-    fields  = utils.json_read(prefix + "inferno.json")
+    fields  = utils.json_read(prefix + "pre-inferno.json")
     #nebenfach = utils.json_read("nebenfach.json")
 
 #    back = utils.groupby(((course, major +" · "+ category)
@@ -25,8 +25,10 @@ def main():
 #    fields = [back] + list(fields.values())
 #    print(json.dumps(fields, indent=2))
 
-    with open("page.html") as f: page_tmpl = f.read()
+    with open("page.html")  as f: page_tmpl  = f.read()
     with open("index.html") as f: index_tmpl = f.read()
+    with open("code.js")    as f: code_tmpl  = f.read()
+    with open("style.css")  as f: style_tmpl = f.read()
 
     filename = lambda reg: "".join(c for c in reg if c.isalnum())
 
@@ -34,23 +36,29 @@ def main():
                     k.replace("B.Sc.", "Bachelor")
                      .replace("M.Sc.", "Master")
                      .replace(" (2015)", ""),
-                    oprefix + "-" + filename(k) + ".html")
+                    filename(k) + ".html")
                    for k in fields.keys()
                    if k.endswith(" (2015)")]
     simple_regulations = [(a,b,c) for a,b,c in regulations if b.endswith(" Informatik")]
     hard_regulations   = [(a,b,c) for a,b,c in regulations if not b.endswith(" Informatik")]
 
-    with open("gh-pages/index.html", "w") as f:
-      f.write(pystache.render(index_tmpl, {
-        "list": [
-          {'href': href, 'title': today4 +" "+ regulation_short}
-          for regulation, regulation_short, href in simple_regulations
-        ],
-        "experimentallist": [
-          {'href': href, 'title': today4 +" "+ regulation_short}
-          for regulation, regulation_short, href in hard_regulations
-        ],
-      }))
+    with open(folder + "/index.html", "w") as f:
+        f.write(pystache.render(index_tmpl, {
+          "list": [
+            {'href': href, 'title': today4 +" "+ regulation_short}
+            for regulation, regulation_short, href in simple_regulations
+          ],
+          "experimentallist": [
+            {'href': href, 'title': today4 +" "+ regulation_short}
+            for regulation, regulation_short, href in hard_regulations
+          ],
+        }))
+
+    with open(folder + "/code.js", "w") as f:
+        f.write(code_tmpl)
+
+    with open(folder + "/style.css", "w") as f:
+        f.write(style_tmpl)
 
     for regulation, regulation_short, href in regulations:
         dates = utils.json_read(prefix + "-" + filename(regulation) + ".json")
@@ -60,7 +68,7 @@ def main():
         with open("style.css") as f: css_style = f.read()
         js_data = json.dumps(data, indent=" ")
 
-        with open("gh-pages/" + href, "w") as f:
+        with open(folder + "/" + href, "w") as f:
             f.write(pystache.render(page_tmpl, {
                 "today":  today,
                 "today2": today2,
@@ -91,6 +99,7 @@ def clean(module_id, entry, fields, regulation):
     sort_title = entry['content'][0]['title'][10:]
     sort, title = sort_title.split(" ", 1)
     title = title or get_first("Titel") or ""
+    orig_title = title
     module_id = module_id or get_first("TUCaN-Nummer") or ""
     title = utils.remove_bracketed_part(title)
     title = utils.remove_bracketed_part(title)
@@ -172,18 +181,23 @@ def clean(module_id, entry, fields, regulation):
       category = category.replace("Nebenfach", "Fachübergreifend")
 
     # dates
+    pdt   = lambda day: datetime.datetime.strptime(day, "%Y-%m-%d")
+    fmtdt = lambda day: datetime.datetime.strftime(day, "%Y-%m-%d")
+    shiftNweeks = lambda n, x: fmtdt(pdt(x) + datetime.timedelta(weeks=n))
+
     dates   = {i for item in entry['content'] for i in item.get('dates',   [])}
     uedates = {i for item in entry['content'] for i in item.get('uedates', [])}
-    uebung  = "Übung" if len(uedates) != 1 else "Übungsstunde"
-    dates |= set("\t".join(y.split("\t")[:-1])+"\t"+uebung+"\t"+str(i)
-                 for i in range(15) for y in uedates)
-    uedates = list(uedates)
-    dates = clean_dates(dates)
+    uebung  = "Übung " if len(uedates) != 1 else "Übungsstunde"
+#    uedates = {"\t".join([shiftNweeks(i, y.split("\t",1)[0])] + y.split("\t")[1:3] + [uebung + y.split("\t")[3]]).replace(orig_title, "")
+    uedates = {"\t".join([shiftNweeks(i, y.split("\t",1)[0])] + y.split("\t")[1:3] + [uebung])
+               for y in uedates for i in range( int((pdt(y.split("\t")[4])
+                                                    - pdt(y.split("\t")[0])).days/7+1) )}
+    dates   = clean_dates( dates | uedates )
 
     # result
     result = utils.merge_dict(entry, dates)
     result = utils.merge_dict(result, {
-        "id": module_id, "uedates": uedates,
+        "id": module_id,
         "title": title, "title_short": abbr,
         "owner": owner, "owner_short": short_owner,
         "credits": str(entry["credits"]).zfill(2),
@@ -241,33 +255,36 @@ def clean_dates(item):
 
     dates = list(sorted(parse_date(i) for i in item))
 
-    # first, last event
-    first = last = first_to_last = ""
-    if len(dates) > 0:
-        first = dates[ 0][0].strftime("%Y-%m-%d")
-        last  = dates[-1][0].strftime("%Y-%m-%d")
-        first_to_last = "Termine liegen von %s bis %s:<br>" % (
-            dates[ 0][0].strftime("%d. %b"),
-            dates[-1][0].strftime("%d. %b"),
-        )
+#    # first, last event
+#    first = last = first_to_last = ""
+#    if len(dates) > 0:
+#        first = dates[ 0][0].strftime("%Y-%m-%d")
+#        last  = dates[-1][0].strftime("%Y-%m-%d")
+#        first_to_last = "Termine liegen von %s bis %s:<br>" % (
+#            dates[ 0][0].strftime("%d. %b"),
+#            dates[-1][0].strftime("%d. %b"),
+#        )
 
     # how many weeks does the event repeat?
-    counted = collections.Counter( (i[0].weekday(), i[1], i[2]) for i in dates )
+    uniqdates = {tuple(i[:3]) for i in dates}
+    counted = ((i[0].weekday(), i[1], i[2]) for i in uniqdates)
+    counted = collections.Counter(counted)
     counted = [{"count": count, "day": v[0], "start": v[1], "end": v[2]}
               for v, count in counted.items()]
 
     # add rooms of weekly events together
     for d in counted:
         roomlst = [room for i in dates
-                        if (i[0].weekday(), i[1], i[2]) == (d['day'], d['start'], d['end'])
+                        if (i[0].weekday(), i[1], i[2]) ==
+                           (d['day'], d['start'], d['end'])
                         for room in i[3].split(",")]
-        d['room'] = ", ".join(set(roomlst))
+        d['room']  = ", ".join(sorted(set(roomlst)))
+        d['firstdate'] = min(i[0] for i in dates
+                                  if (i[0].weekday(), i[1], i[2]) ==
+                                     (d['day'], d['start'], d['end'])).strftime("%Y-%m-%d")
 
-    counted.sort(key=lambda a: (-a["count"], a["day"]))
-    return {
-        "dates": [(i[0].strftime("%Y-%m-%d"), i[1:]) for i in dates], "weekly": counted,
-        "first_to_last": first_to_last, "first": first, "last": last,
-    }
+    counted.sort(key=lambda a: (a["firstdate"], a["start"]))
+    return { "weekly": counted, }
 
 if __name__ == "__main__": main()
 

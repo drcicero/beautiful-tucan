@@ -1,3 +1,25 @@
+// flatMap polyfill
+if (!Array.prototype.flatMap) {
+  Object.defineProperties(Array.prototype, {
+    flatMap: {
+      configurable: true,
+      value: function flatMap(callback) {
+        return Array.prototype.map.apply(this, arguments)
+          .reduce((x,y) => x.concat(y), []);
+      },
+      writable: true
+    }
+  });
+}
+
+// error messages:
+window.onerror = function (message, url, lineNo){
+    var p = document.createElement("p")
+    p.textContent = 'Error: ' + message + '\n' + 'Line Number: ' + lineNo;
+    document.body.appendChild(p);
+    return true;
+}
+
 // detect localStorage
 try {
   localStorage.setItem('test', 'test');
@@ -45,6 +67,23 @@ function uniq(lst) {
   return lst.filter(i => { var ok = i != last; last = i; return ok; })
 }
 
+function first_to_last(dates) {
+  var first = new Date(dates
+    .map    (x => +new Date(x))
+    .filter (x => x)
+    .reduce((x,y) => Math.min(x, y)));
+
+  var last = new Date(dates
+    .map   (x => +new Date(x))
+    .filter(x => x)
+    .reduce((x,y) => Math.max(x, y)));
+
+  return ""
+    + first.getDate() +"."+ (first.getMonth()+1) +"."+ first.getFullYear()
+    + " und "
+    + last.getDate() +"."+ (last.getMonth()+1) +"."+ last.getFullYear();
+}
+
 function num_to_day(x) { return ["Mo","Di","Mi","Do","Fr","Sa","So"][x]; }
 var format_timespan = w => ""
   + (""+w.start[0]).padStart(2,'0') + ":"
@@ -61,56 +100,70 @@ function saveState() {
     localStorage.uebungs = JSON.stringify(window.selectuebungs);
   }
 
+  // checked modules
   var selected = $("input.checker")
     .filter(elem => elem.checked)
-    .map   (elem => course_by_id[elem.id.substring(elem.id.indexOf("-")+1)]);
+    .map   (elem => module_by_id[elem.id.substring(elem.id.indexOf("-")+1)]);
 
+  // selectable uebungs combo-box
   var uebungs = {};
-  selected.map(course => course.weekly.filter(w => w.room === "Übung").forEach(w =>
-    (uebungs[course.id] || (uebungs[course.id]=[])).push(w.day + format_weekly(w))
-  ));
+  selected
+    .map(module => module.weekly.filter(w => w.room.startsWith("Übung "))
+    .forEach(w =>
+      (uebungs[module.id] || (uebungs[module.id]=[]))
+        .push(w.day + format_weekly(w))
+    ));
   Object.values(uebungs).forEach(x => x.sort());
 
   var termine = "";
   if (selected.length > 0) {
-    var first = new Date(selected
-      .map   (course => +new Date(course.first))
-      .filter(x      => x)
-      .reduce((x,y)  => Math.min(x, y)));
-
-    var last = new Date(selected
-      .map   (course => +new Date(course.last))
-      .filter(x      => x)
-      .reduce((x,y)  => Math.max(x, y)));
+    var dates = selected
+      .flatMap(module => module.content)
+      .flatMap(course => [...course.dates, ...course.uedates])
+      .map(x => x.split("\t")[0])
 
     var mkRow = lst => "<tr><td>" + lst.join("</td><td>") + "</tr></td>"
 
+    var selectedonce = selected
+      //.filter(x => x.weekly.length>0)
+      .flatMap(x => x.weekly
+          .filter(w => !w.room.startsWith("Übung ") || selectuebungs[x.id] === format_weekly(w))
+          .filter(w => w.count == 1)
+          .map(y => mkRow([
+              y.firstdate, num_to_day(y.day),
+              format_timespan(y), x.title_short, "(" + y.room + ")"
+          ]))
+      )
+      .sort()
+      .join("");
+
     var selectedweekly = selected
       //.filter(x => x.weekly.length>0)
-      .map(x => x.weekly
-          .filter(w => w.room !== "Übung" || selectuebungs[x.id] === format_weekly(w))
+      .flatMap(x => x.weekly
+          .filter(w => !w.room.startsWith("Übung ") || selectuebungs[x.id] === format_weekly(w))
+          .filter(w => w.count > 1)
           .map(y => y.day + mkRow([
               y.count + "x", num_to_day(y.day),
               format_timespan(y), x.title_short, "(" + y.room + ")"
           ]))
-      ).reduce((x,y) => x.concat(y))
+      )
       .sort()
-      .map( x => x.substring(1) );
+      .map( x => x.substring(1) )
+      .join("");
 
     termine = (""
-      + "(Termine liegen zwischen "
-      + first.getDate() +"."+ (first.getMonth()+1) +"."+ first.getFullYear()
-      + " und "
-      + last.getDate() +"."+ (last.getMonth()+1) +"."+ last.getFullYear()
-      + "):<br/><table>" //+ mkRow(["", "Tag", "Zeit", "Kurs", "Raum"])
-      + selectedweekly.join("")
+      + "Einzel-Termine:<br/><table>"
+      + selectedonce
+      +"</table><br/>"
+      + "Wiederholende Termine (zwischen "+ first_to_last(dates) +"):<br/><table>" //+ mkRow(["", "Tag", "Zeit", "Kurs", "Raum"])
+      + selectedweekly
       + "</table><br/>"
     );
   }
 
   var events = pre_events.filter(w =>
     selected.some(y => y.id == w.id) &&
-    (w.room !== "Übung" || selectuebungs[w.id] === format_weekly(w)));
+    (!w.room.startsWith("Übung ") || selectuebungs[w.id] === format_weekly(w)));
   var assoc = new Map();
   var grid = {};
   events.forEach(w =>
@@ -132,17 +185,17 @@ function saveState() {
 //    + "Für Regelstudienzeit sind durchschnittlich jedes Semester 30 CP vorgesehen.<br>"
     + "Du hast "
     + selected
-      .map   (course => parseInt(course.credits))
+      .map   (module => parseInt(module.credits))
       .reduce((x,y) => x+y, 0)
     +" CP in folgenden Kursen ausgewählt:<br>"
-    + selected.map(course => course.title_short + " (" + parseInt(course.credits) + "cp)").join(", ")
+    + selected.map(module => module.title_short + " (" + parseInt(module.credits) + "cp)").join(", ")
     + "<br><br>"
 
     + (Object.keys(uebungs).length === 0 ? "" :
         "Kleingruppen wählen:<br>"
       + Object.entries(uebungs).map(kv =>
-        course_by_id[kv[0]].title_short
-        + ": <select data-courseid='"+kv[0]+"'><option>Kleingruppentermin wählen</option>"
+        module_by_id[kv[0]].title_short
+        + ": <select data-moduleid='"+kv[0]+"'><option>Kleingruppentermin wählen</option>"
         + kv[1].map(v => "<option"+(selectuebungs[kv[0]] === v.substr(1)?" selected":"")+">"+v.substr(1)+"</option>").join("") + "</select>"
       ).join("<br>")
       + "<br><br>"
@@ -183,15 +236,14 @@ function saveState() {
       return "<div" + class_ + title + style + ">" + desc + "</div>";
     } ).join("\n")).join("\n")
     + "</div><br>"
-  
     + termine
     + selected.map(x => x.title_short +": "+ x.title).join("<br/>")
   );
 
   $("select").forEach(x => x.onchange = e => {
-    selectuebungs[e.target.dataset.courseid] = e.target.value;
+    selectuebungs[e.target.dataset.moduleid] = e.target.value;
     saveState();
-    $("select").filter(x => x.dataset.courseid === e.target.dataset.courseid)[0].focus();
+    $("select").filter(x => x.dataset.moduleid === e.target.dataset.moduleid)[0].focus();
   });
 
   $(".box-b").forEach(x => x.onmouseenter = () =>
@@ -208,72 +260,78 @@ function saveState() {
 
   // deselect all unselectable
   $(".conflicting").forEach(delClass("conflicting"));
-  pre_events.filter(x => x.room !== "Übung").forEach(entry => {
+  pre_events.filter(x => !x.room.startsWith("Übung ")).forEach(entry => {
     var id = find_id(grid, entry.starti, entry.endi);
     var obj = $$("summary.box-b-"+entry.id).classList;
     if (id !== 0) obj.add("conflicting");
   });
 };
 
-// create div from course
+// create div from module
 window.lastSuperCategory = null;
 window.lastCategory = null;
-function courseDiv(course) {
+function moduleDiv(module) {
   var result = (
-    "<span>" + course.credits + "CP</span>"
-  + "<span>" + course.title_short + "</span>"
+    "<span>" + module.credits + "CP</span>"
+  + "<span>" + module.title_short + "</span>"
   + "<span title='"
-     + course.title + "'>" + course.title + "</span>"
+     + module.title + "'>" + module.title + "</span>"
   + "<span title='"
-     + course.owner + "'>" + course.owner_short + "</span>"
+     + module.owner + "'>" + module.owner_short + "</span>"
   );
 
-  var checker = '<label><input class=checker type="checkbox" id="checker-' + course.id + '"/></label>'
+  var checker = '<label><input class=checker type="checkbox" id="checker-' + module.id + '"/></label>'
 
-  var cat = course.category.replace(' ', '-');
-  var category = (lastCategory == course.category ? "" :
+  var cat = module.category.replace(' ', '-');
+  var category = (lastCategory == module.category ? "" :
       '<br/></details><details class=category open>'
     + '<summary><div class=toggler-show></div>'
-    + '<b>' + course.category + '</b><clear/></summary>'
+    + '<b>' + module.category + '</b><clear/></summary>'
   );
-  window.lastCategory = course.category;
+  window.lastCategory = module.category;
 
-//  var cat = course.category.replace(' ', '-');
+//  var cat = module.category.replace(' ', '-');
 //  var category_start_html = ('<div class=category>'
 //    + '<input class=toggler type="checkbox" id="toggler-' + cat + '"/>'
 //    + '<label class=toggler for="toggler-' + cat + '"><div class=toggler-show></div>'
-//    + '<b>' + (course.category[0]=="Y" ? course.category.slice(14) : course.category) + '</b><clear/></label>');
+//    + '<b>' + (module.category[0]=="Y" ? module.category.slice(14) : module.category) + '</b><clear/></label>');
 
-//  var category = (lastSuperCategory == (course.category[0]=="Y") ? (lastCategory == course.category ? "" :
+//  var category = (lastSuperCategory == (module.category[0]=="Y") ? (lastCategory == module.category ? "" :
 //      '<br/></div>' + category_start_html
 //  ) :
 //      '<br/></div></div><div class=category>'
-//    + '<input class=toggler type="checkbox" id="toggler-' + (course.category[0]=="Y") + '"/>'
-//    + '<label class=toggler for="toggler-' + (course.category[0]=="Y") + '"><div class=toggler-show></div>'
-//    + '<b>' + course.category[0] + '</b><clear/></label>' + category_start_html );
-//  window.lastSuperCategory = course.category[0]=="Y";
-//  window.lastCategory = course.category;
+//    + '<input class=toggler type="checkbox" id="toggler-' + (module.category[0]=="Y") + '"/>'
+//    + '<label class=toggler for="toggler-' + (module.category[0]=="Y") + '"><div class=toggler-show></div>'
+//    + '<b>' + module.category[0] + '</b><clear/></label>' + category_start_html );
+//  window.lastSuperCategory = module.category[0]=="Y";
+//  window.lastCategory = module.category;
 
   var details = ""; // "<div class=esc>X</div><div class=prev>&lt;</div><div class=next>&gt;</div>";
-  if (course.weekly && course.weekly.length > 0)
-    details += "<b>" + course.first_to_last + "</b>"
-      + course.weekly.map( x =>
-          "* " + x.count +"x "+ format_weekly(x) +" ("+ x.room +")"
+
+  if (module.weekly && module.weekly.length > 0) {
+    var dates = module.content
+      .flatMap(course => [...course.dates, ...course.uedates])
+      .map(x => x.split("\t")[0]);
+    details += "<b>Termine liegen zwischen " + first_to_last(dates) + "</b><br>"
+      + module.weekly.map( x =>
+          "* " + x.count +"x " + (x.count == 1? x.firstdate + " ": "") + format_weekly(x) +" ("+ x.room +")"
         ).join("<br/>")
       + "<br/><br/>";
-  details += "<b>Kurse</b><br/>" + uniq(course.content.map(x=>x.title)).join("<br/>\n")+"<br/><br/>"
-  details += course.details.filter(x=>x.details != "").map( x =>
+  }
+  details += "<b>Kurse</b><br/>" +
+    uniq(module.content.map(x=>x.title)).join("<br/>\n")+"<br/><br/>"
+  details += module.details.filter(x=>x.details != "").map( x =>
     "<b>" + x.title + "</b><br/>" + x.details).join("<br/>\n");
-  details += JSON.stringify(course.uedates);
+  // details += JSON.stringify(module.uedates);
 
   return category + ( "<div class=flex>"
     + checker
-    + "<details class=course-wrapper style=''>"
-      + "<summary id='course-" + course.id + "' class='course box-b box-b-" + course.id + "'>"
+    + "<details class=module-wrapper style=''>"
+      + "<summary id='module-" + module.id + "' class='module box-b box-b-" + module.id + "'>"
         + result
         + "<div class=toggler-show></div>"
       + "</summary>"
-      + "<div class=details id='details-" + course.id + "'>"
+      + "<div class=details id='details-" + module.id + "'>"
         + details
       + "</div>"
     + "</details></div>"
@@ -284,22 +342,20 @@ window.onload = function() {
 
   window.selectuebungs = {};
 
-  window.course_by_id = {};
-  data.forEach(x => course_by_id[x.id]=x);
+  window.module_by_id = {};
+  data.forEach(x => module_by_id[x.id]=x);
 
   window.pre_events = data
-    .map   (x => x.weekly.map(y => ({
+    .flatMap(x => x.weekly.map(y => ({
       id: x.id, title_short: x.title_short,
       count: y.count, day: y.day, start: y.start, end: y.end, room: y.room,
       starti: y.day * 24*60 + y.start[0] * 60 + y.start[1],
       endi:   y.day * 24*60 + y.end[0]   * 60 + y.end[1],
     })))
-    .reduce((x,y)=>x.concat(y), [])
     .filter (x => x.count>1)
     .sort((x,y) => ((y.endi-y.starti) - (x.endi-x.starti))*(5*24*60) + x.starti-y.starti);
   window.times = pre_events
-    .map   (event => [event.starti, event.endi])
-    .reduce((x,y) => x.concat(y), []);
+    .flatMap(event => [event.starti, event.endi]);
   window.times = [...new Set(times)];
   times.sort((x,y) => x-y);
   pre_events.forEach(event => {
@@ -307,9 +363,9 @@ window.onload = function() {
     event.endi   = times.indexOf(event.endi);
   });
 
-  // show courses
+  // show modules
   window.lastCategory = null;
-  main.innerHTML = "<div><details hidden>" + data.map(courseDiv).join("\n") + "</details></div>";
+  main.innerHTML = "<div><details hidden>" + data.map(moduleDiv).join("\n") + "</details></div>";
 
   // load state
   if (hasLocalStorage) {
@@ -327,20 +383,20 @@ window.onload = function() {
     x.parentElement.nextSibling.classList.toggle("checked");
     saveState();
   });
-  $(".course-wrapper > summary").forEach(x => x.onclick = () =>
-    $(".course-wrapper > summary").forEach(y => x !== y ? y.parentElement.open = false : ""));
+  $(".module-wrapper > summary").forEach(x => x.onclick = () =>
+    $(".module-wrapper > summary").forEach(y => x !== y ? y.parentElement.open = false : ""));
 
   var esc = () => {
-    var courses = $(".course-wrapper > summary");
-    courses[courses.findIndex(x => x.parentElement.open)].click();
+    var modules = $(".module-wrapper > summary");
+    modules[modules.findIndex(x => x.parentElement.open)].click();
   };
   var prev = () => {
-    var courses = $(".course-wrapper > summary");
-    courses[courses.findIndex(x => x.parentElement.open)-1].click();
+    var modules = $(".module-wrapper > summary");
+    modules[modules.findIndex(x => x.parentElement.open)-1].click();
   };
   var next = () => {
-    var courses = $(".course-wrapper > summary");
-    courses[courses.findIndex(x => x.parentElement.open)+1].click();
+    var modules = $(".module-wrapper > summary");
+    modules[modules.findIndex(x => x.parentElement.open)+1].click();
   };
   document.onkeyup = (e) => {
     if      (e.keyCode === 27) esc();

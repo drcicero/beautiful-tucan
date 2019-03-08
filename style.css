@@ -9,7 +9,8 @@ html {font:14px/1.5 sans-serif;}
 body {margin:auto; max-width:40em; padding:1em; padding-top:1em;}
 hidden {display:none}
 h1 {font-size:2em; line-height:1.25}
-p {margin:3em 0}
+h2 {font-size:1em; margin-top:2em; margin-bottom:0}
+p {margin-bottom:1em;margin-top:0}
 
 /* details summary */
 summary::-webkit-details-marker {display:none} summary {list-style-type:none}
@@ -29,18 +30,18 @@ summary b {padding:.5em; padding-bottom:0; display:block}
 .highlight-box-b {box-shadow: 0 0 10px black}
 
 .flex {display:flex; align-items:flex-start; margin:.5em 0}
-.course-wrapper {flex-grow:1}
+.module-wrapper {flex-grow:1}
 .flex > label {padding:.4em}
-.course {display:flex; border:1px dotted silver; padding:0.25em 0.5em}
-.course:hover {border:1px solid black; cursor:pointer;}
-.course > span {overflow:hidden; text-overflow:ellipsis; white-space:nowrap}
-.course > span:nth-child(1) {width:3em;color:red}
-.course > span:nth-child(2) {width:3em}
-.course > span:nth-child(3) {flex-grow:1; width:0}
-.course > span:nth-child(4) {width:6em;color:green}
+.module {display:flex; border:1px dotted silver; padding:0.25em 0.5em}
+.module:hover {border:1px solid black; cursor:pointer;}
+.module > span {overflow:hidden; text-overflow:ellipsis; white-space:nowrap}
+.module > span:nth-child(1) {width:3em;color:red}
+.module > span:nth-child(2) {width:3em}
+.module > span:nth-child(3) {flex-grow:1; width:0}
+.module > span:nth-child(4) {width:6em;color:green}
 
 .conflicting {background:#eee; opacity:.5}
-.checked .course {background:#f3ffbd; opacity:1}
+.checked .module {background:#f3ffbd; opacity:1}
 
 .tb.list tr > td:nth-child(6) {font-size:.5em}
 

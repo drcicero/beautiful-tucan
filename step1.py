@@ -12,7 +12,8 @@ warnings.simplefilter('ignore', UserWarning) # ignore bs4 warnings like:
 # """UserWarning: "b'////////'" looks like a filename, not markup.
 #    You should probably open this file and pass the filehandle into Beautiful Soup."""
 
-POOLSIZE = 16 #  8  -->  ~10min # achtung, bitte tucan server nicht überlasten :)
+# achtung, tucan server nicht überlasten :)
+POOLSIZE         = 16 #  8  -->  ~10min
 
 SSO_URL        = "https://sso.tu-darmstadt.de"
 TUCAN_URL      = "https://www.tucan.tu-darmstadt.de"
@@ -22,8 +23,8 @@ INFERNO_PREFIX = INFERNO_URL + "/pp/plans/modules/"
 TUCAN_THIS_SEMESTER_SEARCH_OPTION = "Sommersemester 2019"
 #TUCAN_THIS_SEMESTER_SEARCH_OPTION = "Wintersemester 2018"
 
-prefix = "cache/" + utils.half_semester_filename(datetime.datetime.today()) + "-"
-db = dbm.open(prefix+"+cache.db", "c")
+prefix = "cache/" #+ utils.half_semester_filename(datetime.datetime.today()) + "-"
+db = dbm.open(prefix + "cache.db", "c")
 
 def main():
     if not os.path.exists('cache'): os.mkdir("cache")
@@ -36,12 +37,13 @@ def main():
     get_pre_tucan_w = lambda: download_tucan_vv_wahl(cred)
     get_pre_tucan   = lambda: download_tucan_vv_search(cred)
     get_tucan       = lambda: download_tucan_vv_pages(cred, precourses)
-    inferno     = utils.json_read_or(prefix+'inferno.json',           get_inferno)
-    precourses  = utils.json_read_or(prefix+'pre-tucan-pflicht.json', get_pre_tucan_p)
-    precourses += utils.json_read_or(prefix+'pre-tucan-wahl.json',    get_pre_tucan_w)
-    precourses += utils.json_read_or(prefix+'pre-tucan.json',         get_pre_tucan)
+
+    inferno     = utils.json_read_or(prefix+"pre-inferno.json", get_inferno)
+    precourses  = utils.json_read_or(prefix+"pre-tucan-pflicht.json", get_pre_tucan_p)
+    precourses += utils.json_read_or(prefix+"pre-tucan-wahl.json", get_pre_tucan_w)
+    precourses += utils.json_read_or(prefix+"pre-tucan-search.json", get_pre_tucan)
     precourses  = list(sorted(set(tuple(i) for i in precourses)))
-    courses     = utils.json_read_or(prefix+'tucan.json',             get_tucan)
+    courses     = utils.json_read_or(prefix+"tucan.json", get_tucan)
     regulations = list(inferno.keys())
 
 #    # three alternative ways to get list of courses:
@@ -56,14 +58,15 @@ def main():
     module_ids = ( {module_id for course in courses for module_id in course['modules']}
                  | {key for regulation in regulations for key in inferno[regulation].keys()} )
     get_inferno_modules = lambda: download_from_inferno(cred, module_ids)
-    modules = utils.json_read_or(prefix+'inferno-modules.json', get_inferno_modules)
+    modules = utils.json_read_or(prefix + "inferno.json", get_inferno_modules)
     modules = inner_join(courses, modules)
     pflicht = utils.json_read(prefix+"pre-tucan-pflicht.json")
     for regulation in regulations:
         module_part = {k:v for k,v in modules.items()
                            if regulation in str(v['regulations'])
-                           or (regulation.startswith("B.Sc.") and any(title.startswith(k) for title,url in pflicht))
-#                           or k in inferno[regulation]
+                           or (regulation.startswith("B.Sc.")
+                               and any(title.startswith(k) for title,url in pflicht))
+                           or k in inferno[regulation]
                            }
         short_regulation = "".join(c for c in regulation if c.isalnum())
         utils.json_write(prefix+'-'+short_regulation+'.json', module_part)
@@ -77,18 +80,18 @@ def download_inferno(credentials, roles):
         k, v = kv
         print("  * ", k)
         urlopt = "?form=&regularity=" + v
-        page = browser.get(INFERNO_URL + form['action'] + urlopt)
+        soup = browser.getcached(INFERNO_URL + form['action'] + urlopt)
         # group entries hierarchically
-        toplevel = page.soup.select_one("#plan div > ul li")
+        toplevel = soup.select_one("#plan div > ul li")
         return (k, dict(flatten_inferno(toplevel, [])))
 
     print("\ninferno")
     browser = log_into_sso(credentials)
     # make new plan, with master computer science 2015, in german
-    page = browser.get(INFERNO_URL + "/pp/plans?form&lang=de")
-#    lst  = (set(page.soup.select(".planEntry label a"))
-#          - set(page.soup.select(".planEntry label a.inactive")))
-    form = page.soup.form
+    soup = browser.getcached(INFERNO_URL + "/pp/plans?form&lang=de")
+#    lst  = (set(soup.select(".planEntry label a"))
+#          - set(soup.select(".planEntry label a.inactive")))
+    form = soup.form
     options = [(i.text, i['value'])
                for i in form.select("#_regularity_id option")]
     with mp.Pool(POOLSIZE) as p:
@@ -97,84 +100,85 @@ def download_inferno(credentials, roles):
 def download_from_inferno(credentials, module_ids):
     print("\nfrom inferno" +" " + str(len(module_ids)))
     browser = log_into_sso(credentials)
-    page = browser.get(INFERNO_URL)
+    #soup = browser.getcached(INFERNO_URL)
     # download all entries
     status = {'ready':len(module_ids), 'finished':0, 'printed':0}
     with mp.Pool(POOLSIZE) as p:
-        return p.map(lambda x: get_inferno_page(browser, status, x), module_ids)
+        return p.map(lambda x: get_inferno_page(browser, status, x), sorted(module_ids))
 
 def download_tucan_vv_search(credentials):
     print("\ntucan-vv search")
-    browser, page, session_key = log_into_tucan(credentials)
-    page = browser.get(TUCAN_URL + page.soup.select_one('li[title="Lehrveranstaltungssuche"] a')['href'])
-    form = ms.Form(page.soup.select_one("#findcourse"))
-    semester_list = [(i.text, i['value']) for i in page.soup.select('#course_catalogue option')
+    browser, soup = log_into_tucan(credentials)
+    soup = browser.getcached(TUCAN_URL + soup.select_one('li[title="Lehrveranstaltungssuche"] a')['href'])
+    form = ms.Form(soup.select_one("#findcourse"))
+    semester_list = [(i.text, i['value']) for i in soup.select('#course_catalogue option')
        if TUCAN_THIS_SEMESTER_SEARCH_OPTION in i.text]
     print(semester_list[0])
     form['course_catalogue'] = semester_list[0][1] # neustes semester
     form['with_logo'] = '2' # we need two criteria to start search, this should show everything
     form.choose_submit("submit_search")
     page = browser.submit(form, TUCAN_URL + form.form['action'])
-    return walk_tucan_list(browser, page)
+    return walk_tucan_list(browser, page.soup)
 
-def walk_tucan_list(browser, page):
-    limit = int(page.soup.select("#searchCourseListPageNavi a")[-1]['class'][0].split("_", 1)[1])
+def walk_tucan_list(browser, soup):
+    limit = int(soup.select("#searchCourseListPageNavi a")[-1]['class'][0].split("_", 1)[1])
     result = []
     with ParallelCrawler(POOLSIZE, limit=limit) as p:
         def walk(href):
-            page = browser.get(TUCAN_URL + href)
-            navs = page.soup.select("#searchCourseListPageNavi a")
-            for nav in navs: p.apply(walk, nav['href'])
+            print(nav.text)
+            soup = browser.get(TUCAN_URL + href)
+            navs = soup.select("#searchCourseListPageNavi a")
+            for nav in navs: p.apply(walk, nav['href'], nav.text)
             # the last argument called ,-A00000000000000... is superflous
             # also replace the second to last argument -N3 replace by -N0
-            # if clean no longer works, replace cleanup with the identity function
+            # note: if clean no longer works, replace cleanup with the identity function
             clean = lambda s: ",".join(s.split(",")[:-1])
-            result.extend( (i.text, clean(i['href'])) for i in page.soup.select("a[name='eventLink']") )
+            result.extend( (i.text, clean(i['href'])) for i in soup.select("a[name='eventLink']") )
             return href, None
-        p.apply(walk, page.soup.select_one("#searchCourseListPageNavi .pageNaviLink_1")['href'])
+        p.apply(walk, soup.select_one("#searchCourseListPageNavi .pageNaviLink_1")['href'])
         p.get()
         return list(sorted(result))
 
 def download_tucan_vv_pages(credentials, courses):
     print("\ntucan-vv each page")
-    browser, page, session_key = log_into_tucan(credentials)
+    browser, _ = log_into_tucan(credentials)
     i, maxi = [0], len(courses)
     def doit(title_url):
         i[0] += 1; progress(i[0], maxi)
-        return get_tucan_page(browser, title_url, session_key)
+        return get_tucan_page(browser, title_url)
     with mp.Pool(POOLSIZE) as p: return p.map(doit, courses)
 
 def download_tucan_vv_pflicht(credentials):
     print("\ntucan-vv pflicht FB20")
-    browser, page, session_key = log_into_tucan(credentials)
-    page = browser.get(TUCAN_URL + page.soup.select_one('li[title="VV"] a')['href'])
-    page = browser.get(TUCAN_URL + [i for i in page.soup.select("#pageContent a") if i.text.startswith(" FB20 - Informatik")][0]['href'])
-    link = [i for i in page.soup.select("#pageContent a") if i.text.startswith(" Pflichtveranstaltungen")][0]['href']
+    browser, soup = log_into_tucan(credentials)
+    soup = browser.getcached(TUCAN_URL + soup.select_one('li[title="VV"] a')['href'])
+    soup = browser.getcached(TUCAN_URL + [i for i in soup.select("#pageContent a") if i.text.startswith(" FB20 - Informatik")][0]['href'])
+    link = [i for i in soup.select("#pageContent a") if i.text.startswith(" Pflichtveranstaltungen")][0]['href']
     return walk_tucan(browser, link)[0]
 
 def download_tucan_vv_wahl(credentials):
     print("\ntucan-vv wahl FB20")
-    browser, page, session_key = log_into_tucan(credentials)
-    page = browser.get(TUCAN_URL + page.soup.select_one('li[title="VV"] a')['href'])
-    page = browser.get(TUCAN_URL + [i for i in page.soup.select("#pageContent a") if i.text.startswith(" FB20 - Informatik")][0]['href'])
-    link = [i for i in page.soup.select("#pageContent a") if i.text.startswith(" Wahlbereiche")][0]['href']
+    browser, soup = log_into_tucan(credentials)
+    soup = browser.getcached(TUCAN_URL + soup.select_one('li[title="VV"] a')['href'])
+    soup = browser.getcached(TUCAN_URL + [i for i in soup.select("#pageContent a") if i.text.startswith(" FB20 - Informatik")][0]['href'])
+    link = [i for i in soup.select("#pageContent a") if i.text.startswith(" Wahlbereiche")][0]['href']
     return walk_tucan(browser, link)[0]
 
 #def download_tucan_vv_catalogue(credentials, FBs):
 #    print("\ntucan-vv catalogue FB20")
-#    browser, page, session_key = log_into_tucan(credentials)
-#    page = browser.get(TUCAN_URL + page.soup.select_one('li[title="VV"] a')['href'])
+#    browser, soup = log_into_tucan(credentials)
+#    soup = browser.getcached(TUCAN_URL + soup.select_one('li[title="VV"] a')['href'])
 #    result = []
 #    for FB in FBs:
-#        link = [i for i in page.soup.select("#pageContent a") if i.text.startswith(" FB"+FB)][0]
+#        link = [i for i in soup.select("#pageContent a") if i.text.startswith(" FB"+FB)][0]
 #        data = walk_tucan(browser, TUCAN_URL + link["href"]) #, limit=None if FB=="20" else limit)
 #        result.extend(data)
 #    return result
 
 #def download_tucan_anmeldung(credentials):
 #    print("\ntucan anmeldung david")
-#    browser, page, session_key = log_into_tucan(credentials)
-#    link = page.soup.select_one('li[title="Anmeldung"] a')['href']
+#    browser, soup = log_into_tucan(credentials)
+#    link = soup.select_one('li[title="Anmeldung"] a')['href']
 #    data = walk_tucan(browser, TUCAN_URL + link)
 #    return data
 
@@ -185,12 +189,12 @@ def walk_tucan(browser, start_page): # limit=None
     courses, modules = [], []
     with ParallelCrawler(POOLSIZE, limit=10) as p:
         def walk(link, linki):
-            page = browser.get(TUCAN_URL + link)
+            soup = browser.getcached(TUCAN_URL + link)
             title = linki['title']
             path = linki['path'] + [title]
             print("\r" + "  "*len(linki['path']) + " > " + title)
 #            if isParent(link):
-            for nlink, nlinki in extract_links(page.soup, path):
+            for nlink, nlinki in extract_links(soup, path):
 #                if (limit is None
 #                or isCourse(nlink) == (nlinki['title'][:10] in limit)):
                 if   isCourse(nlink): courses.append( (nlinki['title'], nlink) )
@@ -198,9 +202,9 @@ def walk_tucan(browser, start_page): # limit=None
                 elif isParent(nlink): p.apply(walk, nlink, nlinki)
             return link, None
 #            if isCourse(link):
-#                return link, get_tucan_page(browser, (title, link), session_key)
+#                return link, get_tucan_page(browser, (title, link))
 #            if isModule(link):
-#                return link, merge_dict(extract_tucan_details(page.soup, blame=title),
+#                return link, merge_dict(extract_tucan_details(soup, blame=title),
 #                  {'modules':[title[:10]], 'title':title}) # 'link':link
         p.apply(walk, start_page, dict(title='', path=[]))
         p.get()
@@ -222,23 +226,27 @@ def inner_join(courses, modules):
     return {k:merge_course(g, modules[k]) for k,g in utils.groupby(courses, key=lambda x:x[0])}
 
 def flatten_inferno(item, path):
-    path = path + [item.h2.text.replace("\t", "").replace("\n", "")]
-    for item in list(item.find("ul", recursive=False).children):
-        for i in flatten_inferno(item.li, path): yield i
-        #yield from flatten_inferno(item.li, path)
-    if item.find(class_="selectableCatalogue", recursive=False):
-        catalogue = item.find(class_="selectableCatalogue", recursive=False)
-        for item in catalogue.select(".planEntry label a"):
-            if 'inactive' in item['class']: continue
-            yield (item.text[:10], (path[-1], item.text.split(" - ")[1])) # last path part should be enough
+    if item.h2:
+        path = path + [item.h2.text.replace("\t", "").replace("\n", "")]
+        for item in list(item.find("ul", recursive=False).children):
+            for i in flatten_inferno(item.li, path): yield i
+            #yield from flatten_inferno(item.li, path)
+        if item.find(class_="selectableCatalogue", recursive=False):
+            catalogue = item.find(class_="selectableCatalogue", recursive=False)
+            for item in catalogue.select(".planEntry label a"):
+                if 'inactive' in item['class']: continue
+                yield (item.text[:10], (path[-1], item.text.split(" - ")[1])) # last path part should be enough
+    else:
+        pass 
+        # print(item)
 
 ################################################################################
 # browser
 
 def get_inferno_page(browser, status, module_id):
     status['finished'] += 1; progress(status['finished'], status['ready']) # progress
-    page = browser.get(INFERNO_PREFIX + module_id + "?lang=de")
-    details = extract_inferno_module(page.soup) or {}
+    soup = browser.getcached(INFERNO_PREFIX + module_id + "?lang=de")
+    details = extract_inferno_module(soup) or {}
     # TODO get title
     regulations = [i['details']
                    for i in details['details']
@@ -246,26 +254,16 @@ def get_inferno_page(browser, status, module_id):
     regulations = regulations[0] if regulations else []
     return utils.merge_dict(details, {'module_id':module_id, 'regulations':regulations})
 
-def get_tucan_page(browser, title_url, session_key):
+def get_tucan_page(browser, title_url):
     title, url = title_url
 
     # if the url list was stored in a previous session,
     # we need to replace the outdated session key in the url with the new one:
-    oldurl = url
-    parts = url.split("-")
-    parts[1] = session_key
-    url = "-".join(parts)
-
-    if not oldurl in db:
-        response = browser.get(TUCAN_URL + url)
-        db[oldurl] = response.content
-        soup = response.soup
-    else:
-        soup = bs4.BeautifulSoup(db[oldurl])
+    soup = browser.getcached(TUCAN_URL + url)
 
 #    print("\n=-=-=-=-=-=-=-= BEGIN",
 #          "\nwget --no-cookies --header \"Cookie: cnsc="+ browser.get_cookiejar().get('cnsc') +"\" \"" + TUCAN_URL + url + "\" -O test.html",
-#          "\n" + re.sub("[ ]+", " ", page.soup.text),
+#          "\n" + re.sub("[ ]+", " ", soup.text),
 #          "\n=-=-=-=-=-=-=-= END")
     dates   = blame("no dates for '"+title+"'",   lambda: extract_tucan_dates(soup)) or []
     uedates = blame("no uedates for '"+title+"'", lambda: extract_tucan_uedates(soup, title)) or []
@@ -293,7 +291,7 @@ def merge_course(courses, module):
 ################################################################################
 # soup extractors
 
-def parse_uedate(string, blamei):
+def parse_uedate(string, uetitle, blamei):
     # 'Fr, 16. Okt 2018 [13:30]-Fr, 16. Okt 2018 [13:30]' -> (day, start_hm, end_hm)
     start,  end    = string.split("-")
     s_wday, e_wday = start[:2],    end[:2]
@@ -301,7 +299,7 @@ def parse_uedate(string, blamei):
     s_hm,   e_hm   = start[-6:-1], end[-6:-1]
     if s_wday != e_wday: print("\r(warn: inequal start/end weekday for '{}' cause {} - {}"
       .format(blamei, start, end))
-    return "\t".join([utils.sanitize_date(s_day), s_hm, e_hm])
+    return "\t".join([utils.sanitize_date(s_day), s_hm, e_hm, uetitle, utils.sanitize_date(e_day)])
 
 def parse_dates(dates):
     def get_time(day, start, end, room):
@@ -348,7 +346,7 @@ def extract_tucan_uedates(soup, blamei):
     if not course_dates: return
     course_dates = course_dates[0]
     if not len(course_dates.select('li')): return
-    return [parse_uedate(i.select('p')[2].text, blamei)+"\t"+i.strong.text.strip()
+    return [parse_uedate(i.select('p')[2].text, i.strong.text.strip(), blamei)
             for i in course_dates.select('li') if i.select('p')[2].text.strip() != ""]
 
 def get_table_with_caption(soup, caption):
@@ -400,8 +398,8 @@ def progress(current, maximum):
 
 class ParallelCrawler():
     __slots__ = ["_ready", "_finished", "_limit", "_pool", "_event", "_result", "_lock"]
-    def __init__(self, threads=None, limit=300):
-        self._pool = mp.Pool(POOLSIZE)
+    def __init__(self, threads=POOLSIZE, limit=300):
+        self._pool = mp.Pool(threads)
         self._event = mp.Event()
         self._result = dict()
         self._lock = mp.Lock()
@@ -488,8 +486,27 @@ def log_into_tucan(credentials):
     redirected_url = "=".join(page.headers['REFRESH'].split('=')[1:])
     page = browser.get(TUCAN_URL + redirected_url)
     page = browser.get(_get_redirection_link(page))
+
     session_key = page.url.split("-")[2] # "N000000000000001," == anonymous
-    return browser, page, session_key
+    def getcached(url, name=""):
+      name = name or url
+      if url.startswith(TUCAN_URL):
+        parts = url.split("-")
+        if parts[2].startswith("N") and len(parts[2]) == len(session_key):
+          parts[2] = "SESSKEY,";  name = "-".join(parts)
+          parts[2] = session_key; url  = "-".join(parts)
+
+      if not name in db:
+          print("NEW")
+          response = browser.get(url)
+          db[name] = response.content
+          soup = response.soup
+      else:
+          soup = bs4.BeautifulSoup(db[name])
+      return soup
+    browser.getcached = getcached
+
+    return browser, page.soup
 
 def log_into_sso(credentials):
     browser = ms.Browser(soup_config={"features":"html.parser"})
@@ -504,6 +521,18 @@ def log_into_sso(credentials):
 
     message = page.soup.select("#msg")
     if message and not 'class="success"' in str(message): raise Exception(message[0])
+
+    def getcached(url):
+      name = url
+      if not name in db:
+          print("NEW")
+          response = browser.get(url)
+          db[name] = response.content
+          soup = response.soup
+      else:
+          soup = bs4.BeautifulSoup(db[name])
+      return soup
+    browser.getcached = getcached
     return browser
 
 ################################################################################
