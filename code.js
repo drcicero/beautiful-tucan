@@ -20,24 +20,12 @@ window.onerror = function (message, url, lineNo){
     return true;
 }
 
-// detect localStorage
-try {
-  localStorage.setItem('test', 'test');
-  localStorage.removeItem('test');
-  window.hasLocalStorage = true;
-} catch(e) {
-  window.hasLocalStorage = false;
-}
-
-//search_input.onchange = function () {}
-
 // defs
 var $  = x => Array.from(document.querySelectorAll(x));
 var $$ = x => document.querySelector(x);
 var noCommonElement = (x,y) => x.filter(e => y.includes(e)).length == 0;
 var delClass = c => e => e.classList.remove(c);
 var addClass = c => e => e.classList.add(c);
-//var copy = it => JSON.parse(JSON.stringify(it));
 
 var colors = [0,1,2,3,4,5,6,7,8,9,10,11,];
 
@@ -62,10 +50,10 @@ function find_id(grid, min_t, max_t) {
   return id;
 }
 
-function uniq(lst) {
-  var last;
-  return lst.filter(i => { var ok = i != last; last = i; return ok; })
-}
+//function uniq(lst) {
+//  var last;
+//  return lst.filter(i => { var ok = i != last; last = i; return ok; })
+//}
 
 function first_to_last(dates) {
   var first = new Date(dates
@@ -93,12 +81,9 @@ var format_timespan = w => ""
   + (""+w.end[1]).padStart(2,'0');
 var format_weekly = w => num_to_day(w.day) + " " + format_timespan(w);
 
-// use localStorage
 function saveState() {
-  if (hasLocalStorage) {
-    localStorage.checked = JSON.stringify($("input").map(x => [x.id, x.checked]));
-    localStorage.uebungs = JSON.stringify(window.selectuebungs);
-  }
+  location.hash = $("input").filter(x => x.checked).map(x => x.id.slice(8))
+                +";"+ btoa(JSON.stringify(selectuebungs));
 
   // checked modules
   var selected = $("input.checker")
@@ -118,7 +103,7 @@ function saveState() {
   var termine = "";
   if (selected.length > 0) {
     var dates = selected
-      .flatMap(module => module.content)
+      .flatMap(module => Object.values(module.content))
       .flatMap(course => [...course.dates, ...course.uedates])
       .map(x => x.split("\t")[0])
 
@@ -129,12 +114,13 @@ function saveState() {
       .flatMap(x => x.weekly
           .filter(w => !w.room.startsWith("Übung ") || selectuebungs[x.id] === format_weekly(w))
           .filter(w => w.count == 1)
-          .map(y => mkRow([
+          .map(y => [y.firsrtdate+format_timespan(y), mkRow([
               y.firstdate, num_to_day(y.day),
               format_timespan(y), x.title_short, "(" + y.room + ")"
-          ]))
+          ])])
       )
       .sort()
+      .map(x => x[1])
       .join("");
 
     var selectedweekly = selected
@@ -142,13 +128,13 @@ function saveState() {
       .flatMap(x => x.weekly
           .filter(w => !w.room.startsWith("Übung ") || selectuebungs[x.id] === format_weekly(w))
           .filter(w => w.count > 1)
-          .map(y => y.day + mkRow([
+          .map(y => [y.day+format_timespan(y), mkRow([
               y.count + "x", num_to_day(y.day),
               format_timespan(y), x.title_short, "(" + y.room + ")"
-          ]))
+          ])])
       )
       .sort()
-      .map( x => x.substring(1) )
+      .map(x => x[1])
       .join("");
 
     termine = (""
@@ -216,7 +202,7 @@ function saveState() {
         "'width:"+(width/5-2)+"%;top:"+(h*73.33)+"px;left:"+(d*width/5)+"%'></div>"
       ).join("")).join("\n")
 
-    + selected.map( select => select.weekly.map( week => {
+    + selected.map( select => select.weekly.filter(x=>x.count>1).map( week => {
       var gotassoc = assoc.get(select.id + format_weekly(week));
       if (gotassoc === undefined) return "";
       var parallelBlocks = subblock[
@@ -228,10 +214,17 @@ function saveState() {
       var h      = height/12/60*10 * ((week.end[0]-8) * 60 + week.end[1])/ 10 - top;
       var w      = width/5/parallelBlocks - 2;
       var desc = select.title_short + " - " + format_timespan(week) + "<br>"
-               + week.room + "<br>findet " + week.count + " Mal statt"
-             /*+ select.first.substr(8,2) +"."+ select.first.substr(5,2)*/;
+               + week.count +"x in "+ week.room;
+      var dates = Object.values(select.content)
+        .flatMap(course => [...course.dates, ...course.uedates])
+        .map(x => x.split("\t")[0]);
+      var ldesc = select.title + "\n"
+                + format_timespan(week) + "\n"
+                + week.room + "\n"
+                + "findet " + week.count + " Mal statt\n"
+                + "zwischen " + first_to_last(dates);
       var class_ = " class='box-b box-b-" + select.id + " color-" + (data.indexOf(select)%colors.length) + "'";
-      var title  = " title='" + desc.replace(/<br>/g, "\n") + "\n" + select.title + "'";
+      var title  = " title='" + ldesc + "'";
       var style  = " style='position:absolute;top:"+top+"px;left:"+left+"%;width:"+w+"%;height:"+h+"px'";
       return "<div" + class_ + title + style + ">" + desc + "</div>";
     } ).join("\n")).join("\n")
@@ -284,9 +277,14 @@ function moduleDiv(module) {
 
   var cat = module.category.replace(' ', '-');
   var category = (lastCategory == module.category ? "" :
-      '<br/></details><details class=category open>'
-    + '<summary><div class=toggler-show></div>'
-    + '<b>' + module.category + '</b><clear/></summary>'
+      '\n<br/>'
+    + '\n</details>'
+    + '\n<details class=category open>'
+    + '\n  <summary>'
+    + '\n    <div class=toggler-show></div>'
+    + '\n    <b>' + module.category + '</b>'
+    + '\n    <clear/>'
+    + '\n  </summary>'
   );
   window.lastCategory = module.category;
 
@@ -309,7 +307,7 @@ function moduleDiv(module) {
   var details = ""; // "<div class=esc>X</div><div class=prev>&lt;</div><div class=next>&gt;</div>";
 
   if (module.weekly && module.weekly.length > 0) {
-    var dates = module.content
+    var dates = Object.values(module.content)
       .flatMap(course => [...course.dates, ...course.uedates])
       .map(x => x.split("\t")[0]);
     details += "<b>Termine liegen zwischen " + first_to_last(dates) + "</b><br>"
@@ -319,22 +317,29 @@ function moduleDiv(module) {
       + "<br/><br/>";
   }
   details += "<b>Kurse</b><br/>" +
-    uniq(module.content.map(x=>x.title)).join("<br/>\n")+"<br/><br/>"
+    Object.values(module.content).map(x=>x.title).join("<br/>\n")+"<br/><br/>"
   details += module.details.filter(x=>x.details != "").map( x =>
     "<b>" + x.title + "</b><br/>" + x.details).join("<br/>\n");
+  details += "<br/><hr/><br/>" +
+    Object.values(module.content).map(x=>
+      "<b>" + x.title + "</b><br/>\n" + x.details.map(x=>
+      "<i>" + x.title + "</i>:\n" + x.details).join("<br/><br/>\n")).join("<br/><br/><br/>\n") +
+    "<br/><br/>";
   // details += JSON.stringify(module.uedates);
 
-  return category + ( "<div class=flex>"
-    + checker
-    + "<details class=module-wrapper style=''>"
-      + "<summary id='module-" + module.id + "' class='module box-b box-b-" + module.id + "'>"
-        + result
-        + "<div class=toggler-show></div>"
-      + "</summary>"
-      + "<div class=details id='details-" + module.id + "'>"
-        + details
-      + "</div>"
-    + "</details></div>"
+  return category + (""
+    +"\n<div class=flex>"
+    +"\n  " + checker
+    +"\n  <details class=module-wrapper style=''>"
+    +"\n    <summary id='module-" + module.id + "' class='module box-b box-b-" + module.id + "'>"
+    +"\n      " + result
+    +"\n      <div class=toggler-show></div>"
+    +"\n    </summary>"
+    +"\n    <div class=details id='details-" + module.id + "'>"
+    +"\n      " + details
+    +"\n    </div>"
+    +"\n  </details>"
+    +"\n</div>"
   );
 }
 
@@ -368,19 +373,19 @@ window.onload = function() {
   main.innerHTML = "<div><details hidden>" + data.map(moduleDiv).join("\n") + "</details></div>";
 
   // load state
-  if (hasLocalStorage) {
-    JSON.parse(localStorage.checked || "[]").forEach(x => {
-      var elem = document.getElementById(x[0]);
-      if (elem) elem.checked = x[1];
-      if (elem && elem.classList.length>0 && x[1]) elem.parentElement.nextSibling.classList.toggle(
+  var course_uebung = location.hash.slice(1).split(";");
+  var course = course_uebung[0].split(",");
+  window.selectuebungs = JSON.parse(atob(course_uebung[1] || btoa("{}")));
+  $("input").forEach(elem => {
+    elem.checked = course.includes(elem.id.slice(8))
+    if (elem.checked && elem.classList.length>0)
+      elem.parentElement.nextElementSibling.classList.toggle(
         elem.classList[0].replace("er", "ed"));
-    });
-    window.selectuebungs = JSON.parse(localStorage.uebungs || "{}");
-  }
+  });
 
   // enable toggles
   $("input.checker").forEach( x => x.onclick = e => {
-    x.parentElement.nextSibling.classList.toggle("checked");
+    x.parentElement.nextElementSibling.classList.toggle("checked");
     saveState();
   });
   $(".module-wrapper > summary").forEach(x => x.onclick = () =>
@@ -427,5 +432,5 @@ window.onload = function() {
 
   saveState();
 }
-document.addEventListener("pjax:success", window.onload)
+// document.addEventListener("pjax:success", window.onload)
 

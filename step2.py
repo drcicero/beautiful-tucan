@@ -96,9 +96,11 @@ def clean(module_id, entry, fields, regulation):
       return abbrs[0]
 
     # module_id, title, abbr
-    sort_title = entry['content'][0]['title'][10:]
-    sort, title = sort_title.split(" ", 1)
-    title = title or get_first("Titel") or ""
+    first_entry = list(entry['content'].values())[0]
+    sort_title = first_entry['title'][10:]
+    _, title = sort_title.split(" ", 1)
+    if len(list(entry['content'].values())) > 1:
+      title = get_first("Titel") or title
     orig_title = title
     module_id = module_id or get_first("TUCaN-Nummer") or ""
     title = utils.remove_bracketed_part(title)
@@ -151,14 +153,14 @@ def clean(module_id, entry, fields, regulation):
 
     # last name of owners
     owner = "; ".join(collections.OrderedDict(
-      (x,1) for entry in entry['content']
+      (x,1) for entry in entry['content'].values()
             for x in (get_first("Lehrende", entry) or
                       get_first("Modulverantwortlicher", entry) or "???").split("; ")
     ).keys()) or "???"
     short_owner = "; ".join(i.split()[-1] for i in owner.split("; "))
 
     # category
-    isos = entry['content'][0]['title'].split(" ")[0].endswith("-os")
+    isos = first_entry['title'].split(" ")[0].endswith("-os")
     category = fields[regulation].get(module_id, ["",""])[0]
     category = clean_category(category)
     if category == "C. Fachübergreifende Lehrveranstaltungen": category = ""
@@ -179,14 +181,17 @@ def clean(module_id, entry, fields, regulation):
     )
     if "B.Sc." in regulation:
       category = category.replace("Nebenfach", "Fachübergreifend")
+    else:
+      category = category.replace("Pflichtveranstaltung", "Nicht einsortiert")
 
     # dates
     pdt   = lambda day: datetime.datetime.strptime(day, "%Y-%m-%d")
     fmtdt = lambda day: datetime.datetime.strftime(day, "%Y-%m-%d")
     shiftNweeks = lambda n, x: fmtdt(pdt(x) + datetime.timedelta(weeks=n))
 
-    dates   = {i for item in entry['content'] for i in item.get('dates',   [])}
-    uedates = {i for item in entry['content'] for i in item.get('uedates', [])}
+    dates   = {i #+", "+ item['title'].split(" ", 1)[1]
+      for item in entry['content'].values() for i in item.get('dates',   [])}
+    uedates = {i for item in entry['content'].values() for i in item.get('uedates', [])}
     uebung  = "Übung " if len(uedates) != 1 else "Übungsstunde"
 #    uedates = {"\t".join([shiftNweeks(i, y.split("\t",1)[0])] + y.split("\t")[1:3] + [uebung + y.split("\t")[3]]).replace(orig_title, "")
     uedates = {"\t".join([shiftNweeks(i, y.split("\t",1)[0])] + y.split("\t")[1:3] + [uebung])
@@ -266,19 +271,20 @@ def clean_dates(item):
 #        )
 
     # how many weeks does the event repeat?
-    uniqdates = {tuple(i[:3]) for i in dates}
-    counted = ((i[0].weekday(), i[1], i[2]) for i in uniqdates)
+    uniqdates = {tuple(i[:4]) for i in dates}
+    counted = ((i[0].weekday(), *i[1:]) for i in uniqdates)
     counted = collections.Counter(counted)
-    counted = [{"count": count, "day": v[0], "start": v[1], "end": v[2]}
+    counted = [{"count": count, "day": v[0], "start": v[1], "end": v[2],
+                "room": v[3]}
               for v, count in counted.items()]
 
     # add rooms of weekly events together
     for d in counted:
-        roomlst = [room for i in dates
-                        if (i[0].weekday(), i[1], i[2]) ==
-                           (d['day'], d['start'], d['end'])
-                        for room in i[3].split(",")]
-        d['room']  = ", ".join(sorted(set(roomlst)))
+#        roomlst = [room for i in dates
+#                        if (i[0].weekday(), i[1], i[2]) ==
+#                           (d['day'], d['start'], d['end'])
+#                        for room in i[3].split(",")]
+#        d['room']  = ", ".join(sorted(set(roomlst)))
         d['firstdate'] = min(i[0] for i in dates
                                   if (i[0].weekday(), i[1], i[2]) ==
                                      (d['day'], d['start'], d['end'])).strftime("%Y-%m-%d")
