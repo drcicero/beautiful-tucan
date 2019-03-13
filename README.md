@@ -3,14 +3,17 @@
 ~~~
 $ git clone --depth 1 https://github.com/drcicero/beautiful-tucan.git
 $ cd beautiful-tucan
-$ env TUID_USER=xx11xxxx TUID_PASS=xxxxxxxxxx sh make.sh
+$ sh make.sh
+TUID_USER: xxyyxxxx
+TUID_PASS: xxxxxxxxxxxxxxxxx
 ~~~
 
 This will invoke 'pip3 install mechanicalsoup bs4 pystache' to get dependencies,
 download data from tucan and inferno into a directory called 'cache', and
 create html+js+css files in a directory called 'gh-pages'.
 
-Now copy the contents of gh-pages to a directory that is served by a webserver:
+Now copy the contents of gh-pages to a directory that is served by a webserver,
+for example via cp or rsync:
 ~~~
 $ cp -v -r gh-pages/* ~/.public_html/beautiful-tucan/
 ~~~
