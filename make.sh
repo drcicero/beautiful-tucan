@@ -5,7 +5,6 @@ export LANG=de_DE.UTF-8
 today="$(date --rfc-3339=date)"
 echo $today
 
-#pip3 install --user -q mechanicalsoup bs4 pystache
 [ -d cache/"$today" ] || rm cache/*.*    # new day delete cache
 
 mkdir -p cache    cache/"$today"      && # create folders
