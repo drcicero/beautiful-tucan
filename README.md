@@ -3,12 +3,13 @@
 ~~~
 $ git clone --depth 1 https://github.com/drcicero/beautiful-tucan.git
 $ cd beautiful-tucan
+$ pip3 install --user -q mechanicalsoup bs4 pystache
 $ sh make.sh
 TUID_USER: xxyyxxxx
 TUID_PASS: xxxxxxxxxxxxxxxxx
 ~~~
 
-This will invoke 'pip3 install mechanicalsoup bs4 pystache' to get dependencies,
+This will install mechanicalsoup, bs4 and pystache as dependencies,
 download data from tucan and inferno into a directory called 'cache', and
 create html+js+css files in a directory called 'gh-pages'.
 
