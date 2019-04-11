@@ -25,7 +25,7 @@ def main():
 #    fields = [back] + list(fields.values())
 #    print(json.dumps(fields, indent=2))
 
-    with open("dist/page.html")  as f: page_tmpl  = f.read()
+    with open("page.html")  as f: page_tmpl  = f.read()
     with open("index.html") as f: index_tmpl = f.read()
     with open("dist/main.js")    as f: code_tmpl  = f.read()
     with open("style.css")  as f: style_tmpl = f.read()
