@@ -12,12 +12,80 @@ if (!Array.prototype.flatMap) {
   });
 }
 
-// error messages:
+// show error messages:on mobiles
 window.onerror = function (message, url, lineNo){
     var p = document.createElement("p")
     p.textContent = 'Error: ' + message + '\n' + 'Line Number: ' + lineNo;
     document.body.appendChild(p);
-    return true;
+    return false; // still show error
+}
+
+function genDownloadLink(text, filename, linktext) {
+  // download file via <a href=data:... download=filename />
+  var element = document.createElement('a');
+  element.href = "data:text/plain;charset=utf-8," + encodeURIComponent(text);
+  element.download = filename;
+  element.textContent = linktext;
+  return element;
+}
+
+var ical = {
+  vdt: d => d.getFullYear()
+            + (d.getMonth()+1+"").padStart(2,'0')
+            + (d.getDate()+"").padStart(2,'0')
+            + "T"
+            + (d.getHours()+"").padStart(2,'0')
+            + (d.getMinutes()+"").padStart(2,'0')
+            + (d.getSeconds()+"").padStart(2,'0'),
+
+  ymd: d => d.getFullYear() + "-"
+            + (d.getMonth()+1+"").padStart(2,'0') + "-"
+            + (d.getDate()+"").padStart(2,'0'),
+
+  vcalendar: function (dates) {
+    var dates = dates.map(date => {
+      var x = date.split("\t");
+      return {start:new Date(x[0] + "T" + x[1]),
+              end: new Date(x[0] + "T" + x[2]),
+              title: x[4],
+              location: x[3],};
+    });
+
+    return "BEGIN:VCALENDAR"
+      + "\nPRODID:-//Beautiful Tucan via Javascript//DE"
+      + "\nVERSION:2.0"
+      + "\nBEGIN:VTIMEZONE"
+      + "\nTZID:Europe/Berlin"
+      + "\nBEGIN:DAYLIGHT"
+      + "\nTZOFFSETFROM:+0100"
+      + "\nTZOFFSETTO:+0200"
+      + "\nTZNAME:CEST"
+      + "\nDTSTART:19700329T020000"
+      + "\nRRULE:FREQ=YEARLY;BYDAY=-1SU;BYMONTH=3"
+      + "\nEND:DAYLIGHT"
+      + "\nBEGIN:STANDARD"
+      + "\nTZOFFSETFROM:+0200"
+      + "\nTZOFFSETTO:+0100"
+      + "\nTZNAME:CET"
+      + "\nDTSTART:19701025T030000"
+      + "\nRRULE:FREQ=YEARLY;BYDAY=-1SU;BYMONTH=10"
+      + "\nEND:STANDARD"
+      + "\nEND:VTIMEZONE"
+      + dates.map(ical.vevent).join("")
+      + "\nEND:VCALENDAR";
+  },
+
+  vevent: function (date) {
+    return ""
+      + "\nBEGIN:VEVENT"
+      + "\nUID:" + Math.floor(Math.random()*0xffffffff).toString(16)
+      + "\nDTSTAMP:" + ical.vdt(new Date())
+      + "\nDTSTART;TZID=Europe/Berlin:" + ical.vdt(date.start)
+      + "\nDTEND;TZID=Europe/Berlin:"   + ical.vdt(date.end)
+      + "\nSUMMARY:" + date.title
+      + "\nLOCATION:" + date.location
+      + "\nEND:VEVENT";
+  }
 }
 
 // defs
@@ -50,11 +118,6 @@ function find_id(grid, min_t, max_t) {
   return id;
 }
 
-//function uniq(lst) {
-//  var last;
-//  return lst.filter(i => { var ok = i != last; last = i; return ok; })
-//}
-
 function first_to_last(dates) {
   var first = new Date(dates
     .map    (x => +new Date(x))
@@ -83,7 +146,7 @@ var format_weekly = w => num_to_day(w.day) + " " + format_timespan(w);
 
 function saveState() {
   location.hash = $("input").filter(x => x.checked).map(x => x.id.slice(8))
-                +";"+ btoa(JSON.stringify(selectuebungs));
+                + ";"+ btoa(JSON.stringify(selectuebungs));
 
   // checked modules
   var selected = $("input.checker")
@@ -91,30 +154,26 @@ function saveState() {
     .map   (elem => module_by_id[elem.id.substring(elem.id.indexOf("-")+1)]);
 
   // selectable uebungs combo-box
-  var uebungs = {};
-  selected
-    .map(module => module.weekly.filter(w => w.room.startsWith("Übung "))
-    .forEach(w =>
-      (uebungs[module.id] || (uebungs[module.id]=[]))
-        .push(w.day + format_weekly(w))
-    ));
-  Object.values(uebungs).forEach(x => x.sort());
+  var possibleUebungs = selected.map(module =>
+    [module.id, module.weekly
+      .filter(w => w.room.startsWith("Übung "))
+      .map(w => w.day + format_weekly(w))
+      .sort()]
+  ).filter(kv => kv[1].length > 0);
 
   var termine = "";
   if (selected.length > 0) {
+    var mkRow = lst => "<tr><td>" + lst.join("</td><td>") + "</tr></td>"
     var dates = selected
       .flatMap(module => Object.values(module.content))
       .flatMap(course => [...course.dates, ...course.uedates])
-      .map(x => x.split("\t")[0])
-
-    var mkRow = lst => "<tr><td>" + lst.join("</td><td>") + "</tr></td>"
+      .map(x => x.split("\t")[0]);
 
     var selectedonce = selected
-      //.filter(x => x.weekly.length>0)
       .flatMap(x => x.weekly
           .filter(w => !w.room.startsWith("Übung ") || selectuebungs[x.id] === format_weekly(w))
           .filter(w => w.count == 1)
-          .map(y => [y.firsrtdate+format_timespan(y), mkRow([
+          .map(y => [y.firstdate+format_timespan(y), mkRow([
               y.firstdate, num_to_day(y.day),
               format_timespan(y), x.title_short, "(" + y.room + ")"
           ])])
@@ -124,7 +183,6 @@ function saveState() {
       .join("");
 
     var selectedweekly = selected
-      //.filter(x => x.weekly.length>0)
       .flatMap(x => x.weekly
           .filter(w => !w.room.startsWith("Übung ") || selectuebungs[x.id] === format_weekly(w))
           .filter(w => w.count > 1)
@@ -137,7 +195,31 @@ function saveState() {
       .map(x => x[1])
       .join("");
 
+//...x[1].uedates.filter(
+//        w => selectuebungs[x[0].id] ===
+//               num_to_day(new Date(w.split("\t")[0]).getDay())
+//               + " " + w.split("\t")[1]+" - "+w.split("\t")[2]
+//      )
+    var calendardates = selected
+      .flatMap(module => Object.values(module.content).map(x => [module, x]))
+      .flatMap(x => [
+        ...x[1].dates
+          .map(y => y + "\t" + x[0].title_short),
+        ...x[0].weekly
+          .filter(w => w.room.startsWith("Übung ")
+                    && selectuebungs[x[0].id] === format_weekly(w))
+          .flatMap(y =>
+            [...Array(y.count).keys()].map(i =>
+              ical.ymd(new Date(+new Date(y.firstdate) + 1000*60*60*24*7 * i))
+            + "\t"+ format_timespan(y).replace(" - ", "\t") +"\t-\tÜbung " + x[0].title_short) )
+      ]);
+
     termine = (""
+      + genDownloadLink(ical.vcalendar(calendardates),
+                        "beautiful-tucan.ics",
+                        "Ausgewählte Termine downloaden (.ics), zb für Thunderbird/Lightning Calendar").outerHTML
+      + "<br/>"
+      + "<br/>"
       + "Einzel-Termine:<br/><table>"
       + selectedonce
       +"</table><br/>"
@@ -177,9 +259,9 @@ function saveState() {
     + selected.map(module => module.title_short + " (" + parseInt(module.credits) + "cp)").join(", ")
     + "<br><br>"
 
-    + (Object.keys(uebungs).length === 0 ? "" :
+    + (possibleUebungs.length === 0 ? "" :
         "Kleingruppen wählen:<br>"
-      + Object.entries(uebungs).map(kv =>
+      + possibleUebungs.map(kv =>
         module_by_id[kv[0]].title_short
         + ": <select data-moduleid='"+kv[0]+"'><option>Kleingruppentermin wählen</option>"
         + kv[1].map(v => "<option"+(selectuebungs[kv[0]] === v.substr(1)?" selected":"")+">"+v.substr(1)+"</option>").join("") + "</select>"
@@ -212,7 +294,7 @@ function saveState() {
       var left   = width/5      * week.day + lshift;
       var top    = height/12/60*10 * ((week.start[0]-8) * 60 + week.start[1])/ 10;
       var h      = height/12/60*10 * ((week.end[0]-8) * 60 + week.end[1])/ 10 - top;
-      var w      = width/5/parallelBlocks - 2;
+      var w      = width/5/parallelBlocks - 1;
       var desc = select.title_short + " - " + format_timespan(week) + "<br>"
                + week.count +"x in "+ week.room;
       var dates = Object.values(select.content)
@@ -261,9 +343,8 @@ function saveState() {
 };
 
 // create div from module
-window.lastSuperCategory = null;
-window.lastCategory = null;
-function moduleDiv(module) {
+//window.lastSuperCategory = null;
+function moduleDiv(module) { // writes to window.lastCategory
   var result = (
     "<span>" + module.credits + "CP</span>"
   + "<span>" + module.title_short + "</span>"
@@ -350,6 +431,7 @@ window.onload = function() {
   window.module_by_id = {};
   data.forEach(x => module_by_id[x.id]=x);
 
+  // put weekly events into
   window.pre_events = data
     .flatMap(x => x.weekly.map(y => ({
       id: x.id, title_short: x.title_short,
@@ -358,7 +440,9 @@ window.onload = function() {
       endi:   y.day * 24*60 + y.end[0]   * 60 + y.end[1],
     })))
     .filter (x => x.count>1)
-    .sort((x,y) => ((y.endi-y.starti) - (x.endi-x.starti))*(5*24*60) + x.starti-y.starti);
+    // sort: longest duration first, then first start time first
+    // important for displaying overlapping dates in calendar
+    .sort((x,y) => ((y.endi-y.starti) - (x.endi-x.starti))*(7*24*60) + x.starti-y.starti);
   window.times = pre_events
     .flatMap(event => [event.starti, event.endi]);
   window.times = [...new Set(times)];
@@ -370,7 +454,9 @@ window.onload = function() {
 
   // show modules
   window.lastCategory = null;
-  main.innerHTML = "<div><details hidden>" + data.map(moduleDiv).join("\n") + "</details></div>";
+  main.innerHTML = "<div><details hidden>"
+    + data.map(moduleDiv).join("\n") // writes to window.lastCategory
+    + "</details></div>";
 
   // load state
   var course_uebung = location.hash.slice(1).split(";");
@@ -383,14 +469,18 @@ window.onload = function() {
         elem.classList[0].replace("er", "ed"));
   });
 
-  // enable toggles
+  // enable checkboxes
   $("input.checker").forEach( x => x.onclick = e => {
     x.parentElement.nextElementSibling.classList.toggle("checked");
     saveState();
   });
-  $(".module-wrapper > summary").forEach(x => x.onclick = () =>
-    $(".module-wrapper > summary").forEach(y => x !== y ? y.parentElement.open = false : ""));
 
+  // opening summary closes other summaries
+  $(".module-wrapper > summary").forEach(x => x.onclick = () =>
+    $(".module-wrapper > summary").forEach(y =>
+      x !== y ? y.parentElement.open = false : ""));
+
+  // keyboard movement
   var esc = () => {
     var modules = $(".module-wrapper > summary");
     modules[modules.findIndex(x => x.parentElement.open)].click();
@@ -409,28 +499,6 @@ window.onload = function() {
     else if (e.keyCode === 39) next();
   };
 
-//  $(".esc") .forEach(but => but.onclick = esc))
-//  $(".prev").forEach(but => but.onclick = prev);
-//  $(".next").forEach(but => but.onclick = next);
-
-
-//  remove_unchecked.onclick = ()=> {
-//    $(".hidden").forEach(delClass("hidden"));
-//    $("input.input")
-//    .filter(x => !x.checked)
-//    .forEach(x => {
-//      x.parentElement.classList.add("hidden");
-//      var y = document.getElementById("item2-" + x.id.substring(x.id.indexOf("-")))
-//      if (y) y.classList.add("hidden");
-//    });
-//  };
-
-
-//  show_all.onclick = function() {
-//    $(".hidden").forEach(delClass("hidden"));
-//  }
-
   saveState();
 }
-// document.addEventListener("pjax:success", window.onload)
 

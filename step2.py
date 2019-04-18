@@ -32,25 +32,37 @@ def main():
 
     filename = lambda reg: "".join(c for c in reg if c.isalnum())
 
-    regulations = [(k,
-                    k.replace("B.Sc.", "Bachelor")
-                     .replace("M.Sc.", "Master")
-                     .replace(" (2015)", ""),
-                    filename(k) + ".html")
-                   for k in fields.keys()
-                   if k.endswith(" (2015)")]
-    simple_regulations = [(a,b,c) for a,b,c in regulations if b.endswith(" Informatik")]
-    hard_regulations   = [(a,b,c) for a,b,c in regulations if not b.endswith(" Informatik")]
+    regulations = [
+      (k,
+       k.replace("B.Sc.", "Bachelor")
+        .replace("M.Sc.", "Master")
+        .replace(" (2015)", ""),
+       filename(k) + ".html")
+      for k in fields.keys()
+      if k.endswith(" (2015)")
+     ] + [
+      # other FBs?
+      ("BauUmwelt", "FB 13 Bau, Umwelt", "BauUmwelt.html")
+    ]
 
     with open(folder + "/index.html", "w") as f:
         f.write(pystache.render(index_tmpl, {
           "list": [
-            {'href': href, 'title': today4 +" "+ regulation_short}
-            for regulation, regulation_short, href in simple_regulations
+            {'href': href, 'title': today4 +" "+ display_regulation}
+            for regulation, display_regulation, href in regulations
+            if display_regulation.endswith(" Informatik")
+            if not display_regulation.startswith("FB ")
           ],
           "experimentallist": [
-            {'href': href, 'title': today4 +" "+ regulation_short}
-            for regulation, regulation_short, href in hard_regulations
+            {'href': href, 'title': today4 +" "+ display_regulation}
+            for regulation, display_regulation, href in regulations
+            if not display_regulation.endswith(" Informatik")
+            if not display_regulation.startswith("FB ")
+          ],
+          "speciallist": [
+            {'href': href, 'title': today4 +" "+ display_regulation}
+            for regulation, display_regulation, href in regulations
+            if display_regulation.startswith("FB ")
           ],
         }))
 
@@ -60,7 +72,8 @@ def main():
     with open(folder + "/style.css", "w") as f:
         f.write(style_tmpl)
 
-    for regulation, regulation_short, href in regulations:
+    for regulation, display_regulation, href in regulations:
+        print(prefix + "-" + filename(regulation) + ".json")
         dates = utils.json_read(prefix + "-" + filename(regulation) + ".json")
         data = [clean(module_id, module, fields, regulation)
                 for module_id, module in dates.items()]
@@ -73,7 +86,7 @@ def main():
                 "today":  today,
                 "today2": today2,
                 "today4": today4,
-                "regulation_short": regulation_short,
+                "regulation_short": display_regulation,
 
                 "js_data": js_data,
                 "css_style": css_style,
@@ -89,10 +102,11 @@ def clean(module_id, entry, fields, regulation):
       # choose the best one of three abbreviations
       abbr1 = "".join(i for i in title if i.isupper() or i.isnumeric())
       abbr2 = "".join(i[0] if len(i)>0 else "" for i in title.strip().split(" "))
-      abbr3 = (get_first("Anzeige im Stundenplan") or "").strip()
+      abbr3 = (get_first("Kürzel") or "").strip().replace(" ", "")
       abbrs = ( [abbr3, abbr1, abbr2]
                 if 1 < len(abbr3) < 6 else
-                sorted((i for i in (abbr1, abbr2)), key=lambda x: abs(3.6 - len(x))) )
+                sorted((i for i in (abbr1, abbr2)), key=lambda x: abs(3.4 - len(x))) )
+      #print(abbrs)
       return abbrs[0]
 
     # module_id, title, abbr
@@ -161,7 +175,7 @@ def clean(module_id, entry, fields, regulation):
 
     # category
     isos = first_entry['title'].split(" ")[0].endswith("-os")
-    category = fields[regulation].get(module_id, ["",""])[0]
+    category = fields.get(regulation, {}).get(module_id, ["",""])[0]
     category = clean_category(category)
     if category == "C. Fachübergreifende Lehrveranstaltungen": category = ""
     category = (
@@ -201,6 +215,8 @@ def clean(module_id, entry, fields, regulation):
 
     # result
     result = utils.merge_dict(entry, dates)
+    assert result['module_id'] == module_id
+    del result['module_id']
     result = utils.merge_dict(result, {
         "id": module_id,
         "title": title, "title_short": abbr,

@@ -28,11 +28,19 @@ TUCAN_THIS_SEMESTER_SEARCH_OPTION = "Sommersemester 2019"
 if not os.path.exists('cache'): os.mkdir("cache")
 prefix = "cache/" #+ utils.half_semester_filename(datetime.datetime.today()) + "-"
 
-def init(credentials):
+def init(credentials, inf_cookies=None, tuc_cookies=None):
     global cred, tucan_browser, inferno_browser, dbr, dbw
     cred = credentials
-    tucan_browser = log_into_tucan(credentials)
-    inferno_browser = log_into_sso(credentials)
+    if inf_cookies == None:
+      tucan_browser = log_into_tucan(credentials)
+      inferno_browser = log_into_sso(credentials)
+    else:
+      tucan_browser   = ms.Browser(soup_config={"features":"lxml"})
+      inferno_browser = ms.Browser(soup_config={"features":"lxml"})
+      tucan_browser.getcached   = getcached(tucan_browser)
+      inferno_browser.getcached = getcached(inferno_browser)
+      for i in tuc_cookies: tucan_browser.get_cookiejar().set_cookie(i)
+      for i in inf_cookies: inferno_browser.get_cookiejar().set_cookie(i)
 
     pid = mp.current_process().name
     dbr = dbm.open(prefix + "cache.db", "r")
@@ -95,6 +103,13 @@ def main():
         }
         short_regulation = "".join(c for c in regulation if c.isalnum())
         utils.json_write(prefix+'-'+short_regulation+'.json', module_part)
+    if False:
+        # test support for other FBs, here FB 13:
+        module_part = {k:v for k,v in modules.items()
+           if k.startswith("13-")
+        }
+        short_regulation = "".join(c for c in regulation if c.isalnum())
+        utils.json_write(prefix+'-BauUmwelt.json', module_part)
     print()
 
     dbr.close()
@@ -163,7 +178,7 @@ def walk_tucan_list(soup):
     limit = int(last_link['class'][0].split("_", 1)[1]) # last page number
     with ParallelCrawler(_walk_tucan_list_walk,
         POOLSIZE, limit=limit,
-        initializer=init, initargs=(cred,),
+        initializer=init, initargs=(cred, inferno_browser.get_cookiejar(), tucan_browser.get_cookiejar()),
     ) as p:
         p.fork(soup.select_one("#searchCourseListPageNavi .pageNaviLink_1")['href'])
         result = p.get()
@@ -236,7 +251,7 @@ def _walk_tucan_walk(link, linki):
 def walk_tucan(start_page): # limit=None
     with ParallelCrawler(_walk_tucan_walk,
         POOLSIZE, limit=10,
-        initializer=init, initargs=(cred,),
+        initializer=init, initargs=(cred, inferno_browser.get_cookiejar(), tucan_browser.get_cookiejar()),
     ) as p:
         p.fork(start_page, dict(title='', path=[]))
         result = p.get()
@@ -292,10 +307,10 @@ def flatten_inferno(item, path):
         if item.find(class_="selectableCatalogue", recursive=False):
             catalogue = item.find(class_="selectableCatalogue", recursive=False)
             for item in catalogue.select(".planEntry label a"):
-                if 'inactive' in item['class']: continue
+                #if 'inactive' in item['class']: continue
                 yield (item.text[:10], (path[-1], item.text.split(" - ")[1])) # last path part should be enough
     else:
-        pass 
+        pass
         # print(item)
 
 ################################################################################
@@ -454,7 +469,8 @@ def progress(current, maximum):
   sys.stderr.flush()
 
 def progresspmap(func, lst):
-    with mp.Pool(POOLSIZE, initializer=init, initargs=(cred,)) as p:
+    with mp.Pool(POOLSIZE,
+      initializer=init, initargs=(cred, inferno_browser.get_cookiejar(), tucan_browser.get_cookiejar())) as p:
         i, maxi, result = 0, len(lst), []
         for item in p.imap_unordered(func, lst):
             result.append(item)
