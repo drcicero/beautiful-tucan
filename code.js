@@ -185,7 +185,7 @@ function saveState() {
     var selectedweekly = selected
       .flatMap(x => x.weekly
           .filter(w => !w.room.startsWith("Übung ") || selectuebungs[x.id] === format_weekly(w))
-          .filter(w => w.count > 1)
+          .filter(w => w.count != 1)
           .map(y => [y.day+format_timespan(y), mkRow([
               y.count + "x", num_to_day(y.day),
               format_timespan(y), x.title_short, "(" + y.room + ")"
@@ -200,14 +200,15 @@ function saveState() {
 //               num_to_day(new Date(w.split("\t")[0]).getDay())
 //               + " " + w.split("\t")[1]+" - "+w.split("\t")[2]
 //      )
+
     var calendardates = selected
       .flatMap(module => Object.values(module.content).map(x => [module, x]))
       .flatMap(x => [
         ...x[1].dates
           .map(y => y + "\t" + x[0].title_short),
         ...x[0].weekly
-          .filter(w => w.room.startsWith("Übung ")
-                    && selectuebungs[x[0].id] === format_weekly(w))
+          .filter(w => w.room.startsWith("Übung ") && selectuebungs[x[0].id] === format_weekly(w)
+                    || w.room.startsWith("Übungsstunde"))
           .flatMap(y =>
             [...Array(y.count).keys()].map(i =>
               ical.ymd(new Date(+new Date(y.firstdate) + 1000*60*60*24*7 * i))
@@ -222,8 +223,8 @@ function saveState() {
       + "<br/>"
       + "Einzel-Termine:<br/><table>"
       + selectedonce
-      +"</table><br/>"
-      + "Wiederholende Termine (zwischen "+ first_to_last(dates) +"):<br/><table>" //+ mkRow(["", "Tag", "Zeit", "Kurs", "Raum"])
+      + "</table><br/>"
+      + "Wiederholende Termine (zwischen "+ first_to_last(dates) +"):<br/><table>" // + mkRow(["", "Tag", "Zeit", "Kurs", "Raum"])
       + selectedweekly
       + "</table><br/>"
     );

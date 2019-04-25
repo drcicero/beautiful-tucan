@@ -75,6 +75,8 @@ def main():
     for regulation, display_regulation, href in regulations:
         print(prefix + "-" + filename(regulation) + ".json")
         dates = utils.json_read(prefix + "-" + filename(regulation) + ".json")
+        if not dates: continue # if file exists
+
         data = [clean(module_id, module, fields, regulation)
                 for module_id, module in dates.items()]
         data.sort(key=lambda x:(x['category'], x['id'])) # -int(x['credits'])
