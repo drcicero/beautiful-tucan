@@ -12,12 +12,12 @@ if (!Array.prototype.flatMap) {
   });
 }
 
-// show error messages:on mobiles
+// show error messages on mobile browsers
 window.onerror = function (message, url, lineNo){
-    var p = document.createElement("p")
-    p.textContent = 'Error: ' + message + '\n' + 'Line Number: ' + lineNo;
-    document.body.appendChild(p);
-    return false; // still show error
+  var p = document.createElement("p")
+  p.textContent = 'Error: ' + message + '\n' + 'Line Number: ' + lineNo;
+  document.body.appendChild(p);
+  return false; // do not swallow error in console
 }
 
 function genDownloadLink(text, filename, linktext) {
@@ -94,8 +94,7 @@ var $$ = x => document.querySelector(x);
 var noCommonElement = (x,y) => x.filter(e => y.includes(e)).length == 0;
 var delClass = c => e => e.classList.remove(c);
 var addClass = c => e => e.classList.add(c);
-
-var colors = [0,1,2,3,4,5,6,7,8,9,10,11,];
+var colors = 12;
 
 // do grid[t].push(id) for min_t<t<max_t where a number 'id' that is not yet
 // inside any grid[t]; and return the id.
@@ -109,7 +108,7 @@ function allocate(grid, min_t, max_t) {
 }
 
 function find_id(grid, min_t, max_t) {
-  for (var id=0; id<20; id++) {
+  for (var id=0; id<20; id++) { // actually Max.Int not 20
     var ok = true;
     for (var t=min_t; t<max_t; t++)
       ok = ok && (grid[t]||[]).indexOf(id)===-1;
@@ -233,25 +232,33 @@ function saveState() {
   var events = pre_events.filter(w =>
     selected.some(y => y.id == w.id) &&
     (!w.room.startsWith("Übung ") || selectuebungs[w.id] === format_weekly(w)));
+  // allocate events into grid, get id
   var assoc = new Map();
   var grid = {};
-  events.forEach(w =>
-    assoc.set(w.id + format_weekly(w), allocate(grid, w.starti, w.endi))
-  );
-  var found = {size:Math.max.apply(Math, [0, ...(grid[0]||[])])};
+  events.forEach(w => {
+    var allocatedId = allocate(grid, w.starti, w.endi);
+    assoc.set(w.id + format_weekly(w), allocatedId);
+  });
+
+  // divide week into timeranges of non-overlapping events,
+  // count distinct events per such timerange
+  var found = {size: Math.max.apply(Math, [0, ...(grid[0]||[])])};
   var subblock = [found];
   for (var t=1; t<times.length; t++) {
+    // if one block and the next have no common element, then reset size to zero
     if (noCommonElement(grid[t]||[], grid[t-1]||[])) found = {size:0};
+    // add distinct elements to size
     if (grid[t]) found.size = Math.max.apply(Math, [found.size, ...grid[t]]);
     subblock[t] = found;
   }
 
 //  var box = main2.getClientRects()[0];
-  var width  = 100;
-  var height = 480;
+  var width       = 100;
+  var height      = 480;
+  var daywidth    = width  / 5;
+  var hourheight  = height / 12;
 
   main2.innerHTML = (""
-//    + "Für Regelstudienzeit sind durchschnittlich jedes Semester 30 CP vorgesehen.<br>"
     + "Du hast "
     + selected
       .map   (module => parseInt(module.credits))
@@ -282,34 +289,49 @@ function saveState() {
     + "<div style='position:relative;background:#eee;width:"+width+"%;height:"+height+"px;font-size:0.8em'>"
     + [0,1,2,3,4].map( d=> [...Array(7).keys()].map( h =>
         "<div class=box-c style="+
-        "'width:"+(width/5-2)+"%;top:"+(h*73.33)+"px;left:"+(d*width/5)+"%'></div>"
+        "'width:"+(daywidth-2)+"%;top:"+(h*73.33)+"px;left:"+(d*daywidth)+"%'></div>"
       ).join("")).join("\n")
 
     + selected.map( select => select.weekly.filter(x=>x.count>1).map( week => {
-      var gotassoc = assoc.get(select.id + format_weekly(week));
-      if (gotassoc === undefined) return "";
-      var parallelBlocks = subblock[
-        times.indexOf(week.day*24*60 + week.start[0]*60 + week.start[1])
-      ].size+1;
-      var lshift = width/5/parallelBlocks * gotassoc;
-      var left   = width/5      * week.day + lshift;
-      var top    = height/12/60*10 * ((week.start[0]-8) * 60 + week.start[1])/ 10;
-      var h      = height/12/60*10 * ((week.end[0]-8) * 60 + week.end[1])/ 10 - top;
-      var w      = width/5/parallelBlocks - 1;
-      var desc = select.title_short + " - " + format_timespan(week) + "<br>"
-               + week.count +"x in "+ week.room;
+      var part = assoc.get(select.id + format_weekly(week));
+      if (part === undefined) return "";
+
+      var timesidx = week.day*24*60 + week.start[0]*60 + week.start[1];
+      var parts    = subblock[times.indexOf(timesidx)].size+1;
+
+      var left = daywidth * week.day + part/parts * daywidth;
+      var top  = hourheight * ((week.start[0]-8) + week.start[1]/60);
+      var bot  = hourheight * ((week.end  [0]-8) + week.end  [1]/60);
+      var h    = bot - top;
+      var w    = daywidth/parts - 1;
+
       var dates = Object.values(select.content)
         .flatMap(course => [...course.dates, ...course.uedates])
         .map(x => x.split("\t")[0]);
+
+      var desc  = select.title_short + " - " + format_timespan(week) + "<br>"
+                + week.count +"x in "+ week.room;
       var ldesc = select.title + "\n"
                 + format_timespan(week) + "\n"
                 + week.room + "\n"
                 + "findet " + week.count + " Mal statt\n"
                 + "zwischen " + first_to_last(dates);
-      var class_ = " class='box-b box-b-" + select.id + " color-" + (data.indexOf(select)%colors.length) + "'";
-      var title  = " title='" + ldesc + "'";
-      var style  = " style='position:absolute;top:"+top+"px;left:"+left+"%;width:"+w+"%;height:"+h+"px'";
-      return "<div" + class_ + title + style + ">" + desc + "</div>";
+
+      var c1 = "box-b ";
+      var c2 = "box-b-" + select.id + " ";
+      var c3 = "color-" + (data.indexOf(select)%colors) + " ";
+
+      var s1 = "position:absolute;";
+      var s2 = "top:" + top + "px;";
+      var s3 = "left:" + left + "%;";
+      var s4 = "width:" + w + "%;";
+      var s5 = "height:" + h + "px;";
+
+      var a1 = "class='" + c1 + c2 + c3 + "' ";
+      var a2 = "style='" + s1 + s2 + s3 + s4 + s5 + "' ";
+      var a3 = "title='" + ldesc + "' ";
+
+      return "<div " + a1 + a2 + a3 + ">" + desc + "</div>";
     } ).join("\n")).join("\n")
     + "</div><br>"
     + termine
@@ -355,7 +377,7 @@ function moduleDiv(module) { // writes to window.lastCategory
      + module.owner + "'>" + module.owner_short + "</span>"
   );
 
-  var checker = '<label><input class=checker type="checkbox" id="checker-' + module.id + '"/></label>'
+  var checker = '<label><input class=checker type="checkbox" id="checker-' + module.id + '"/></label>';
 
   var cat = module.category.replace(' ', '-');
   var category = (lastCategory == module.category ? "" :
@@ -370,21 +392,21 @@ function moduleDiv(module) { // writes to window.lastCategory
   );
   window.lastCategory = module.category;
 
-//  var cat = module.category.replace(' ', '-');
-//  var category_start_html = ('<div class=category>'
-//    + '<input class=toggler type="checkbox" id="toggler-' + cat + '"/>'
-//    + '<label class=toggler for="toggler-' + cat + '"><div class=toggler-show></div>'
-//    + '<b>' + (module.category[0]=="Y" ? module.category.slice(14) : module.category) + '</b><clear/></label>');
+  //  var cat = module.category.replace(' ', '-');
+  //  var category_start_html = ('<div class=category>'
+  //    + '<input class=toggler type="checkbox" id="toggler-' + cat + '"/>'
+  //    + '<label class=toggler for="toggler-' + cat + '"><div class=toggler-show></div>'
+  //    + '<b>' + (module.category[0]=="Y" ? module.category.slice(14) : module.category) + '</b><clear/></label>');
 
-//  var category = (lastSuperCategory == (module.category[0]=="Y") ? (lastCategory == module.category ? "" :
-//      '<br/></div>' + category_start_html
-//  ) :
-//      '<br/></div></div><div class=category>'
-//    + '<input class=toggler type="checkbox" id="toggler-' + (module.category[0]=="Y") + '"/>'
-//    + '<label class=toggler for="toggler-' + (module.category[0]=="Y") + '"><div class=toggler-show></div>'
-//    + '<b>' + module.category[0] + '</b><clear/></label>' + category_start_html );
-//  window.lastSuperCategory = module.category[0]=="Y";
-//  window.lastCategory = module.category;
+  //  var category = (lastSuperCategory == (module.category[0]=="Y") ? (lastCategory == module.category ? "" :
+  //      '<br/></div>' + category_start_html
+  //  ) :
+  //      '<br/></div></div><div class=category>'
+  //    + '<input class=toggler type="checkbox" id="toggler-' + (module.category[0]=="Y") + '"/>'
+  //    + '<label class=toggler for="toggler-' + (module.category[0]=="Y") + '"><div class=toggler-show></div>'
+  //    + '<b>' + module.category[0] + '</b><clear/></label>' + category_start_html );
+  //  window.lastSuperCategory = module.category[0]=="Y";
+  //  window.lastCategory = module.category;
 
   var details = ""; // "<div class=esc>X</div><div class=prev>&lt;</div><div class=next>&gt;</div>";
 

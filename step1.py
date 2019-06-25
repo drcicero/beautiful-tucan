@@ -2,10 +2,8 @@
 # -*- coding: utf-8 -*-
 
 from __future__ import division
-import os, re, sys, json, dbm, getpass, warnings, datetime, traceback
+import os, re, sys, dbm, warnings
 import multiprocessing as mp
-import multiprocessing.dummy
-mp.dummy = multiprocessing.dummy
 import utils
 
 import mechanicalsoup as ms # GET, POST, cookie requests
@@ -15,52 +13,85 @@ warnings.simplefilter('ignore', UserWarning) # ignore bs4 warnings like:
 #    You should probably open this file and pass the filehandle into Beautiful Soup."""
 
 # achtung, tucan server nicht überlasten :)
-POOLSIZE       = 16  # 32  -->  ~3min
+POOLSIZE = 16 # 32  -->  ~3min
 
 SSO_URL        = "https://sso.tu-darmstadt.de"
 TUCAN_URL      = "https://www.tucan.tu-darmstadt.de"
 INFERNO_URL    = "http://inferno.dekanat.informatik.tu-darmstadt.de"
 INFERNO_PREFIX = INFERNO_URL + "/pp/plans/modules/"
+prefix = "cache/"
 
 TUCAN_THIS_SEMESTER_SEARCH_OPTION = "Sommersemester 2019"
 #TUCAN_THIS_SEMESTER_SEARCH_OPTION = "Wintersemester 2018"
 
-if not os.path.exists('cache'): os.mkdir("cache")
-prefix = "cache/" #+ utils.half_semester_filename(datetime.datetime.today()) + "-"
+# global variables initialized by init in main and subtasks:
+#   dbr, dbw, tucan_browser, inferno_browser
+# the main task will have additional access to the global variable:
+#   pool
 
-def init(credentials, inf_cookies=None, tuc_cookies=None):
-    global cred, tucan_browser, inferno_browser, dbr, dbw
-    cred = credentials
-    if inf_cookies == None:
-      tucan_browser = log_into_tucan(credentials)
-      inferno_browser = log_into_sso(credentials)
-    else:
-      tucan_browser   = ms.Browser(soup_config={"features":"lxml"})
-      inferno_browser = ms.Browser(soup_config={"features":"lxml"})
-      tucan_browser.getcached   = getcached(tucan_browser)
-      inferno_browser.getcached = getcached(inferno_browser)
-      for i in tuc_cookies: tucan_browser.get_cookiejar().set_cookie(i)
-      for i in inf_cookies: inferno_browser.get_cookiejar().set_cookie(i)
+def init(inf_cookies, tuc_cookies):
+    global pool, dbr, dbw, tucan_browser, inferno_browser
 
     pid = mp.current_process().name
-    dbr = dbm.open(prefix + "cache.db", "r")
-    dbw = dbm.open(prefix + "cache" + pid + ".db", "n")
+    dbr = dbm.open(prefix + "cache.db", "r")            # read
+    dbw = dbm.open(prefix + "cache" + pid + ".db", "n") # write
 
-def reduceRequestCache():
+    inferno_browser = ms.Browser(soup_config={"features":"lxml"})
+    tucan_browser = ms.Browser(soup_config={"features":"lxml"})
+    inferno_browser.getcached = getcached(inferno_browser)
+    tucan_browser.getcached = getcached(tucan_browser)
+
+    for i in inf_cookies: inferno_browser.get_cookiejar().set_cookie(i)
+    for i in tuc_cookies: tucan_browser.get_cookiejar().set_cookie(i)
+    pool = None
+
+def main():
+    global pool
+
+    # ensure cache exists
+    if not os.path.exists(prefix): os.mkdir(prefix)
+
+    # merge multiple cache into one,
+    #   (in case last invocation was aborted before merging).
+    mergeCaches()
+
+    # get session cookies
+    credentials = {"username": utils.get_config('TUID_USER'),
+                   "password": utils.get_config('TUID_PASS', is_password=True)}
+    inferno_browser = log_into_sso(credentials)
+    tucan_browser = log_into_tucan(credentials)
+    inf_cookies = inferno_browser.get_cookiejar()
+    tuc_cookies = tucan_browser.get_cookiejar()
+
+    # init main and setup pool init
+    init(inf_cookies, tuc_cookies)
+    pool = mp.Pool(POOLSIZE, initializer=init, initargs=(inf_cookies, tuc_cookies))
+
+    main2()
+
+    # close databases, so they can be merged and deleted.
+    dbr.close()
+    dbw.close()
+    pool.close(); pool.join()
+
+    # merge multiple cache into one
+    mergeCaches()
+
+def mergeCaches():
     dct = {}
     for f in sorted(os.listdir(prefix)):
         if f.endswith(".db"):
+            print(f, end=" ")
             with dbm.open(prefix + f, "r") as db:
-                print(f, len(db))
+                print(len(db))
                 dct.update(db)
-            os.remove(prefix + f)
     with dbm.open(prefix + "cache.db", "n") as db:
         for k,v in dct.items(): db[k] = v
+    for f in sorted(os.listdir(prefix)):
+        if f.endswith(".db") and not f.endswith("cache.db"):
+            os.remove(prefix + f)
 
-def main():
-    reduceRequestCache()
-    init(get_credentials())
-
+def main2():
     get_inferno      = lambda: download_inferno([])
     get_from_tucan   = lambda: download_from_tucan(course_ids)
     get_from_inferno = lambda: download_from_inferno(module_ids)
@@ -94,27 +125,23 @@ def main():
     wahl    = utils.json_read(prefix+"pre-tucan-wahl.json")
     for regulation in regulations:
         module_part = {k:v for k,v in modules.items()
-            if regulation in str(v['regulations'])
-            or k[0:10] in inferno[regulation]
-            or (regulation.startswith("B.Sc.")
-                and (any(title.startswith(k) for title,url in pflicht)
-                or any(item["title"]=="Titel" and "f\u00fcr Inf" in item["details"]
-                       for item in v["details"])))
+          if regulation in str(v['regulations'])
+          or k[0:10] in inferno[regulation]
+          or (regulation.startswith("B.Sc.")
+            and (any(title.startswith(k) for title,url in pflicht)
+            or any(item["title"]=="Titel" and "f\u00fcr Inf" in item["details"]
+               for item in v["details"])))
         }
         short_regulation = "".join(c for c in regulation if c.isalnum())
         utils.json_write(prefix+'-'+short_regulation+'.json', module_part)
-    if False:
+    if True:
         # test support for other FBs, here FB 13:
         module_part = {k:v for k,v in modules.items()
-           if k.startswith("13-")
+          if k.startswith("13-")
         }
         short_regulation = "".join(c for c in regulation if c.isalnum())
         utils.json_write(prefix+'-BauUmwelt.json', module_part)
     print()
-
-    dbr.close()
-    dbw.close()
-    reduceRequestCache()
 
 ################################################################################
 # download
@@ -136,15 +163,15 @@ def download_inferno(roles):
     form = soup.form
     options = [(form['action'], i.text, i['value'])
                for i in form.select("#_regularity_id option")]
-    return dict(progresspmap(_download_inferno_doit, options))
+    return dict(utils.progresspmap(pool, _download_inferno_doit, options))
 
 def download_from_inferno(module_ids):
     print("\nfrom inferno" +" " + str(len(module_ids)))
-    return sorted(progresspmap(get_inferno_page, module_ids), key=lambda x: x['module_id'])
+    return sorted(utils.progresspmap(pool, get_inferno_page, module_ids), key=lambda x: x['module_id'])
 
 def download_from_tucan(coursetitle_url_list):
     print("\nfrom tucan")
-    return sorted(progresspmap(get_tucan_page, coursetitle_url_list), key=lambda x:x['title'])
+    return sorted(utils.progresspmap(pool, get_tucan_page, coursetitle_url_list), key=lambda x:x['title'])
 
 def download_tucan_vv_search():
     print("\ntucan-vv search")
@@ -169,20 +196,19 @@ def _walk_tucan_list_walk(href):
     # note: if clean no longer works, replace cleanup with the identity function
     clean = lambda s: ",".join(s.split(",")[:-1])
 
-    return (href,
+    return (
       [(i.text, clean(i['href']).replace(session_key, "[SESSION_KEY]"))
        for i in soup.select("a[name='eventLink']")],
       [(nav['href'],) for nav in navs] )
 def walk_tucan_list(soup):
     last_link = soup.select("#searchCourseListPageNavi a")[-1]
     limit = int(last_link['class'][0].split("_", 1)[1]) # last page number
-    with ParallelCrawler(_walk_tucan_list_walk,
-        POOLSIZE, limit=limit,
-        initializer=init, initargs=(cred, inferno_browser.get_cookiejar(), tucan_browser.get_cookiejar()),
-    ) as p:
-        p.fork(soup.select_one("#searchCourseListPageNavi .pageNaviLink_1")['href'])
-        result = p.get()
-        return list(sorted(i for lst in result.values() for i in lst))
+    result = utils.parallelCrawl(pool,
+      _walk_tucan_list_walk,
+      (soup.select_one("#searchCourseListPageNavi .pageNaviLink_1")['href'],),
+      limit=limit
+    )
+    return list(sorted(i for lst in result.values() for i in lst))
 
 def download_tucan_vv_pflicht():
     print("\ntucan-vv pflicht FB20")
@@ -235,13 +261,13 @@ def _walk_tucan_walk(link, linki):
 
     result, forks = [], []
 #    if isParent(link):
-    for nlink, nlinki in extract_links(soup, path):
+    for nlink, nlinki in tucan_extract_links(soup, path):
 #        if (limit is None
 #        or isCourse(nlink) == (nlinki['title'][:10] in limit)):
         if   isCourse(nlink): result.append( ("course", nlinki['title'], nlink) )
         elif isModule(nlink): result.append( ("module", nlinki['title'], nlink) )
         elif isParent(nlink): forks.append( (nlink, nlinki) )
-    return link, result, forks
+    return result, forks
 #    if isCourse(link):
 #        return link, get_tucan_page((title, link))
 #    if isModule(link):
@@ -249,23 +275,29 @@ def _walk_tucan_walk(link, linki):
 #          {'modules':[title[:10]], 'title':title}) # 'link':link
 
 def walk_tucan(start_page): # limit=None
-    with ParallelCrawler(_walk_tucan_walk,
-        POOLSIZE, limit=10,
-        initializer=init, initargs=(cred, inferno_browser.get_cookiejar(), tucan_browser.get_cookiejar()),
-    ) as p:
-        p.fork(start_page, dict(title='', path=[]))
-        result = p.get()
-        courses = ((c,d) for lst in result.values() for typ,c,d in lst if typ=="course")
-        modules = ((c,d) for lst in result.values() for typ,c,d in lst if typ=="modules")
-        return list(sorted(courses)), list(sorted(modules))
+    result = utils.parallelCrawl(pool,
+      _walk_tucan_walk,
+      (start_page, dict(title='', path=[])),
+      limit=10
+    )
+    courses = ((c,d) for lst in result.values() for typ,c,d in lst if typ=="course")
+    modules = ((c,d) for lst in result.values() for typ,c,d in lst if typ=="modules")
+    return list(sorted(courses)), list(sorted(modules))
 
-def extract_links(soup, path):
-    def details(link): return link['href'].replace(session_key, "[SESSION_KEY]"), {
-        'title': link.text.strip(),
-        'path': path
-    }
-    SELECTOR = '#pageContent ul li, #pageContent table tr'
-    return [details(x.a) for x in soup.select(SELECTOR) if x.a] # and x.text.strip() not in BLACKLIST
+def flatten_inferno(item, path):
+    if item.h2:
+        path = path + [item.h2.text.replace("\t", "").replace("\n", "")]
+        for item in list(item.find("ul", recursive=False).children):
+            for i in flatten_inferno(item.li, path): yield i
+            #yield from flatten_inferno(item.li, path)
+        if item.find(class_="selectableCatalogue", recursive=False):
+            catalogue = item.find(class_="selectableCatalogue", recursive=False)
+            for item in catalogue.select(".planEntry label a"):
+                #if 'inactive' in item['class']: continue
+                yield (item.text[:10], (path[-1], item.text.split(" - ")[1])) # last path part should be enough
+    else:
+        pass
+        # print(item)
 
 def inner_join(courses, modules):
     modules = {item['module_id']:item for item in modules}
@@ -298,21 +330,6 @@ def inner_join(courses, modules):
               {newtitle:{**v["content"][c], "title":newtitle}} }
     return result
 
-def flatten_inferno(item, path):
-    if item.h2:
-        path = path + [item.h2.text.replace("\t", "").replace("\n", "")]
-        for item in list(item.find("ul", recursive=False).children):
-            for i in flatten_inferno(item.li, path): yield i
-            #yield from flatten_inferno(item.li, path)
-        if item.find(class_="selectableCatalogue", recursive=False):
-            catalogue = item.find(class_="selectableCatalogue", recursive=False)
-            for item in catalogue.select(".planEntry label a"):
-                #if 'inactive' in item['class']: continue
-                yield (item.text[:10], (path[-1], item.text.split(" - ")[1])) # last path part should be enough
-    else:
-        pass
-        # print(item)
-
 ################################################################################
 # browser
 
@@ -337,6 +354,7 @@ def get_tucan_page(title_url):
 #          "\nwget --no-cookies --header \"Cookie: cnsc="+ inferno_browser.get_cookiejar().get('cnsc') +"\" \"" + TUCAN_URL + url + "\" -O test.html",
 #          "\n" + re.sub("[ ]+", " ", soup.text),
 #          "\n=-=-=-=-=-=-=-= END")
+    blame = utils.blame
     dates   = blame("no dates for '"+title+"'",   lambda: extract_tucan_dates(soup)) or []
     uedates = blame("no uedates for '"+title+"'", lambda: extract_tucan_uedates(soup, title)) or []
     details = blame("no details for '"+title+"'", lambda: extract_tucan_details(soup)) or {}
@@ -362,6 +380,14 @@ def merge_course(courses, module):
 
 ################################################################################
 # soup extractors
+
+def tucan_extract_links(soup, path):
+    def details(link): return link['href'].replace(session_key, "[SESSION_KEY]"), {
+        'title': link.text.strip(),
+        'path': path
+    }
+    SELECTOR = '#pageContent ul li, #pageContent table tr'
+    return [details(x.a) for x in soup.select(SELECTOR) if x.a] # and x.text.strip() not in BLACKLIST
 
 def parse_uedate(string, uetitle, blamei):
     # 'Fr, 16. Okt 2018 [13:30]-Fr, 16. Okt 2018 [13:30]' -> (day, start_hm, end_hm)
@@ -389,11 +415,6 @@ def extract_inferno_module(soup):
     return sanitize_details({"title":   str(i.find("label").text).strip(),
                              "details": str(i.find("div")).strip()}
                              for i in soup.select(SELECTOR))
-
-def blame(msg, func):
-    try: return func()
-    except Exception as e:
-      print("\r(warn: {} cause {} in line {})".format(msg, e, sys.exc_info()[-1].tb_lineno))
 
 def extract_tucan_details(soup):
     details_raw = soup.select_one('#pageContent table:nth-of-type(1) .tbdata')
@@ -458,100 +479,7 @@ def sanitize_details(details):
     return {'details':[i for i in details if i['details'] != ""]}
 
 ################################################################################
-# abstract helper functionality
-
-def progress(current, maximum):
-  # print a progress bar like [*****-----------]
-  MAX = 80
-  a = int(current/maximum*MAX)
-  b = MAX-a
-  sys.stderr.write("\r[" + "*"*a + "."*b + "] " + str(current) + "/" + str(maximum) + " ")
-  sys.stderr.flush()
-
-def progresspmap(func, lst):
-    with mp.Pool(POOLSIZE,
-      initializer=init, initargs=(cred, inferno_browser.get_cookiejar(), tucan_browser.get_cookiejar())) as p:
-        i, maxi, result = 0, len(lst), []
-        for item in p.imap_unordered(func, lst):
-            result.append(item)
-            i += 1; progress(i, maxi)
-        return result
-
-class ParallelCrawler():
-    __slots__ = ["_func", "_ready", "_finished", "_limit", "_pool", "_event", "_result", "_lock"]
-    def __init__(self, func, processes=POOLSIZE, initializer=None, initargs=None, limit=300, parallel=False):
-        self._func = func
-
-        self._pool = mp.Pool(processes, initializer, initargs) if parallel else mp.dummy.Pool(processes)
-        self._event = mp.Event()
-        self._result = dict()
-        self._lock = mp.Lock()
-
-        self._ready = 0
-        self._finished = 0
-        self._limit = limit
-    def __enter__(self):
-        return self
-    def __exit__(self, exc_type, exc_val, exc_tb):
-        self._pool.close()
-        self._pool.join()
-    def fork(self, *args):
-        """ func :: Key -> (Key, Value)
-
-            func must take a single argument and return an key-value tuple,
-            that is then inserted into a hashmap. (The returned key must be
-            equal to the argument the function was called with.)
-
-            Then you can call self.get() to wait for all results and return a
-            dictionary that maps the keys to the values. """
-        def error_cb(exc):
-            print("")
-            traceback.print_exc()
-            raise exc
-        def cb(result):
-            try:
-                assert result is not None
-                key, value, forks = result
-
-                self._result[key] = value
-                with self._lock:
-                    self._finished += 1
-                for i in forks: self.fork(*i)
-                progress(self._finished, self._limit or self._ready)
-
-                with self._lock:
-                    if self._ready == self._finished: self._event.set()
-
-            except:
-                print("")
-                traceback.print_exc()
-                self._event.set()
-
-#        with self._lock:
-        if args[0] in self._result: return
-        with self._lock:
-            self._ready += 1
-        self._result[args[0]] = None
-#
-        self._pool.apply_async(self._func, args, callback=cb, error_callback=error_cb)
-    def get(self):
-        self._event.wait()
-        return self._result
-
-################################################################################
 # helper
-
-def get_credentials():
-  return {"username": _get_config('TUID_USER'),
-          "password": _get_config('TUID_PASS', is_password=True)}
-
-def _get_config(variable, default=None, is_password=False):
-    value = os.environ.get(variable, default)
-    if value is not None: return value
-    if is_password:       return getpass.getpass(variable + ": ")
-    sys.stderr.write(variable + ": ")
-    sys.stderr.flush()
-    return input()
 
 def _get_redirection_link(page):
     return TUCAN_URL + page.soup.select('a')[2].attrs['href']
@@ -584,20 +512,20 @@ def anonymous_tucan():
     return browser, page
 
 def log_into_tucan(credentials):
-    print("a")
+    print("logging in")
     browser, page = anonymous_tucan()
     login_form = ms.Form(page.soup.select('#cn_loginForm')[0])
     login_form['usrname'] = credentials["username"]
     login_form['pass']    = credentials["password"]
     page = browser.submit(login_form, page.url)
-    print("b")
-
     if not 'refresh' in page.headers:
       print(re.sub("\n+", "\n", re.sub("[ \t]+", " ", page.soup.text)))
       print("===============")
       print("This means you probably used the wrong username/password.")
       print("===============")
       sys.exit()
+
+    print("ok")
     redirected_url = "=".join(page.headers['REFRESH'].split('=')[1:])
     page = browser.get(TUCAN_URL + redirected_url)
     page = browser.get(_get_redirection_link(page))
@@ -606,7 +534,6 @@ def log_into_tucan(credentials):
     TUCAN_START_URL = page.url
     session_key = page.url.split("-")[2] # "N000000000000001," == anonymous
 
-    browser.getcached = getcached(browser)
     return browser
 
 def log_into_sso(credentials):
@@ -623,7 +550,6 @@ def log_into_sso(credentials):
     message = page.soup.select("#msg")
     if message and not 'class="success"' in str(message): raise Exception(message[0])
 
-    browser.getcached = getcached(browser)
     return browser
 
 ################################################################################
