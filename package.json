@@ -4,7 +4,7 @@
   "description": "~~~ $ git clone --depth 1 https://github.com/drcicero/beautiful-tucan.git $ cd beautiful-tucan $ pip3 install --user -q mechanicalsoup bs4 pystache $ sh make.sh TUID_USER: xxyyxxxx TUID_PASS: xxxxxxxxxxxxxxxxx ~~~",
   "private": "true",
   "dependencies": {
-    "ics-js": "^0.10.2"
+    "ical-generator": "^1.7.0"
   },
   "devDependencies": {
     "webpack": "^4.29.6",
@@ -12,7 +12,7 @@
   },
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
-	"build": "webpack && python3 step2.py"
+    "build": "webpack && python3 step2.py"
   },
   "repository": {
     "type": "git",
