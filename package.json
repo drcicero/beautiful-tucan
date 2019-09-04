@@ -12,7 +12,9 @@
   },
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
-    "build": "webpack && python3 step2.py"
+	"init": "webpack --mode=production",
+    "rebuild": "webpack && python3 step2.py",
+	"prod": "webpack --mode=production && python3 step2.py"
   },
   "repository": {
     "type": "git",

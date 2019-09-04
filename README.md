@@ -4,6 +4,8 @@
 $ git clone --depth 1 https://github.com/drcicero/beautiful-tucan.git
 $ cd beautiful-tucan
 $ pip3 install --user -q mechanicalsoup bs4 pystache
+$ npm install
+$ npm run init
 $ sh make.sh
 TUID_USER: xxyyxxxx
 TUID_PASS: xxxxxxxxxxxxxxxxx
