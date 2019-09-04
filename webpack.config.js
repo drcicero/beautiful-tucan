@@ -8,5 +8,8 @@ module.exports = {
   },
   optimization: {
 	  minimize: false
+  },
+  node: {
+    "fs": "empty"
   }
-};
+}
