@@ -25,9 +25,9 @@ def main():
 #    fields = [back] + list(fields.values())
 #    print(json.dumps(fields, indent=2))
 
-    with open("page.html")  as f: page_tmpl  = f.read()
+    with open("dist/page.html")  as f: page_tmpl  = f.read()
     with open("index.html") as f: index_tmpl = f.read()
-    with open("code.js")    as f: code_tmpl  = f.read()
+    with open("dist/main.js")    as f: code_tmpl  = f.read()
     with open("style.css")  as f: style_tmpl = f.read()
 
     filename = lambda reg: "".join(c for c in reg if c.isalnum())
@@ -66,7 +66,7 @@ def main():
           ],
         }))
 
-    with open(folder + "/code.js", "w") as f:
+    with open(folder + "/main.js", "w") as f:
         f.write(code_tmpl)
 
     with open(folder + "/style.css", "w") as f:
@@ -311,4 +311,3 @@ def clean_dates(item):
     return { "weekly": counted, }
 
 if __name__ == "__main__": main()
-
