@@ -1,3 +1,6 @@
+import moment from 'moment';
+const icalgen = require('ical-generator');
+
 // flatMap polyfill
 if (!Array.prototype.flatMap) {
   Object.defineProperties(Array.prototype, {
@@ -12,12 +15,119 @@ if (!Array.prototype.flatMap) {
   });
 }
 
-// error messages:
+function generateIcsDownload(selectedCourses) {
+	var cal = icalgen();
+	cal.timezone('Europe/Berlin');
+	console.log(selectedCourses)
+	selectedCourses.forEach(cur => {
+		cur.weekly
+			.filter(w => !w.room.startsWith("Übung ") || selectuebungs[cur.id] === format_weekly(w))
+			.forEach(element => {
+				var startDate = moment.tz(element.firstdate, "YYYY-MM-DD", "Europe/Berlin");
+				var endDate = startDate.clone();
+
+				startDate.add(element.start[0], 'hours');
+				startDate.add(element.start[1], 'minutes');
+
+				endDate.add(element.end[0], 'hours');
+				endDate.add(element.end[1], 'minutes');
+				console.log(startDate.format());
+				var eventObj = cal.createEvent({
+					start: startDate,
+					end: endDate,
+					summary: cur.title_short,
+					location: element.room
+				});
+				
+				eventObj.timezone('Europe/Berlin');
+				
+				if (element.count > 1) {
+					eventObj.repeating({
+						freq: 'WEEKLY',
+						count: element.count
+					});
+				}
+			});
+	});
+
+	return cal.toURL();
+
+}
+
+// show error messages on mobile browsers
 window.onerror = function (message, url, lineNo){
-    var p = document.createElement("p")
-    p.textContent = 'Error: ' + message + '\n' + 'Line Number: ' + lineNo;
-    document.body.appendChild(p);
-    return true;
+  var p = document.createElement("p")
+  p.textContent = 'Error: ' + message + '\n' + 'Line Number: ' + lineNo;
+  document.body.appendChild(p);
+  return false; // do not swallow error in console
+}
+
+function genDownloadLink(text, filename, linktext) {
+  // download file via <a href=data:... download=filename />
+  var element = document.createElement('a');
+  element.href = text;
+  element.download = filename;
+  element.textContent = linktext;
+  return element;
+}
+
+var ical = {
+  vdt: d => d.getFullYear()
+            + (d.getMonth()+1+"").padStart(2,'0')
+            + (d.getDate()+"").padStart(2,'0')
+            + "T"
+            + (d.getHours()+"").padStart(2,'0')
+            + (d.getMinutes()+"").padStart(2,'0')
+            + (d.getSeconds()+"").padStart(2,'0'),
+
+  ymd: d => d.getFullYear() + "-"
+            + (d.getMonth()+1+"").padStart(2,'0') + "-"
+            + (d.getDate()+"").padStart(2,'0'),
+
+  vcalendar: function (dates) {
+    var dates = dates.map(date => {
+      var x = date.split("\t");
+      return {start:new Date(x[0] + "T" + x[1]),
+              end: new Date(x[0] + "T" + x[2]),
+              title: x[4],
+              location: x[3],};
+    });
+
+    return "BEGIN:VCALENDAR"
+      + "\nPRODID:-//Beautiful Tucan via Javascript//DE"
+      + "\nVERSION:2.0"
+      + "\nBEGIN:VTIMEZONE"
+      + "\nTZID:Europe/Berlin"
+      + "\nBEGIN:DAYLIGHT"
+      + "\nTZOFFSETFROM:+0100"
+      + "\nTZOFFSETTO:+0200"
+      + "\nTZNAME:CEST"
+      + "\nDTSTART:19700329T020000"
+      + "\nRRULE:FREQ=YEARLY;BYDAY=-1SU;BYMONTH=3"
+      + "\nEND:DAYLIGHT"
+      + "\nBEGIN:STANDARD"
+      + "\nTZOFFSETFROM:+0200"
+      + "\nTZOFFSETTO:+0100"
+      + "\nTZNAME:CET"
+      + "\nDTSTART:19701025T030000"
+      + "\nRRULE:FREQ=YEARLY;BYDAY=-1SU;BYMONTH=10"
+      + "\nEND:STANDARD"
+      + "\nEND:VTIMEZONE"
+      + dates.map(ical.vevent).join("")
+      + "\nEND:VCALENDAR";
+  },
+
+  vevent: function (date) {
+    return ""
+      + "\nBEGIN:VEVENT"
+      + "\nUID:" + Math.floor(Math.random()*0xffffffff).toString(16)
+      + "\nDTSTAMP:" + ical.vdt(new Date())
+      + "\nDTSTART;TZID=Europe/Berlin:" + ical.vdt(date.start)
+      + "\nDTEND;TZID=Europe/Berlin:"   + ical.vdt(date.end)
+      + "\nSUMMARY:" + date.title
+      + "\nLOCATION:" + date.location
+      + "\nEND:VEVENT";
+  }
 }
 
 // defs
@@ -26,8 +136,7 @@ var $$ = x => document.querySelector(x);
 var noCommonElement = (x,y) => x.filter(e => y.includes(e)).length == 0;
 var delClass = c => e => e.classList.remove(c);
 var addClass = c => e => e.classList.add(c);
-
-var colors = [0,1,2,3,4,5,6,7,8,9,10,11,];
+var colors = 12;
 
 // do grid[t].push(id) for min_t<t<max_t where a number 'id' that is not yet
 // inside any grid[t]; and return the id.
@@ -41,7 +150,7 @@ function allocate(grid, min_t, max_t) {
 }
 
 function find_id(grid, min_t, max_t) {
-  for (var id=0; id<20; id++) {
+  for (var id=0; id<20; id++) { // actually Max.Int not 20
     var ok = true;
     for (var t=min_t; t<max_t; t++)
       ok = ok && (grid[t]||[]).indexOf(id)===-1;
@@ -49,11 +158,6 @@ function find_id(grid, min_t, max_t) {
   }
   return id;
 }
-
-//function uniq(lst) {
-//  var last;
-//  return lst.filter(i => { var ok = i != last; last = i; return ok; })
-//}
 
 function first_to_last(dates) {
   var first = new Date(dates
@@ -83,7 +187,7 @@ var format_weekly = w => num_to_day(w.day) + " " + format_timespan(w);
 
 function saveState() {
   location.hash = $("input").filter(x => x.checked).map(x => x.id.slice(8))
-                +";"+ btoa(JSON.stringify(selectuebungs));
+                + ";"+ btoa(JSON.stringify(selectuebungs));
 
   // checked modules
   var selected = $("input.checker")
@@ -91,30 +195,26 @@ function saveState() {
     .map   (elem => module_by_id[elem.id.substring(elem.id.indexOf("-")+1)]);
 
   // selectable uebungs combo-box
-  var uebungs = {};
-  selected
-    .map(module => module.weekly.filter(w => w.room.startsWith("Übung "))
-    .forEach(w =>
-      (uebungs[module.id] || (uebungs[module.id]=[]))
-        .push(w.day + format_weekly(w))
-    ));
-  Object.values(uebungs).forEach(x => x.sort());
+  var possibleUebungs = selected.map(module =>
+    [module.id, module.weekly
+      .filter(w => w.room.startsWith("Übung "))
+      .map(w => w.day + format_weekly(w))
+      .sort()]
+  ).filter(kv => kv[1].length > 0);
 
   var termine = "";
   if (selected.length > 0) {
+    var mkRow = lst => "<tr><td>" + lst.join("</td><td>") + "</tr></td>"
     var dates = selected
       .flatMap(module => Object.values(module.content))
       .flatMap(course => [...course.dates, ...course.uedates])
-      .map(x => x.split("\t")[0])
-
-    var mkRow = lst => "<tr><td>" + lst.join("</td><td>") + "</tr></td>"
+      .map(x => x.split("\t")[0]);
 
     var selectedonce = selected
-      //.filter(x => x.weekly.length>0)
       .flatMap(x => x.weekly
           .filter(w => !w.room.startsWith("Übung ") || selectuebungs[x.id] === format_weekly(w))
           .filter(w => w.count == 1)
-          .map(y => [y.firsrtdate+format_timespan(y), mkRow([
+          .map(y => [y.firstdate+format_timespan(y), mkRow([
               y.firstdate, num_to_day(y.day),
               format_timespan(y), x.title_short, "(" + y.room + ")"
           ])])
@@ -124,10 +224,9 @@ function saveState() {
       .join("");
 
     var selectedweekly = selected
-      //.filter(x => x.weekly.length>0)
       .flatMap(x => x.weekly
           .filter(w => !w.room.startsWith("Übung ") || selectuebungs[x.id] === format_weekly(w))
-          .filter(w => w.count > 1)
+          .filter(w => w.count != 1)
           .map(y => [y.day+format_timespan(y), mkRow([
               y.count + "x", num_to_day(y.day),
               format_timespan(y), x.title_short, "(" + y.room + ")"
@@ -137,11 +236,36 @@ function saveState() {
       .map(x => x[1])
       .join("");
 
+//...x[1].uedates.filter(
+//        w => selectuebungs[x[0].id] ===
+//               num_to_day(new Date(w.split("\t")[0]).getDay())
+//               + " " + w.split("\t")[1]+" - "+w.split("\t")[2]
+//      )
+
+    var calendardates = selected
+      .flatMap(module => Object.values(module.content).map(x => [module, x]))
+      .flatMap(x => [
+        ...x[1].dates
+          .map(y => y + "\t" + x[0].title_short),
+        ...x[0].weekly
+          .filter(w => w.room.startsWith("Übung ") && selectuebungs[x[0].id] === format_weekly(w)
+                    || w.room.startsWith("Übungsstunde"))
+          .flatMap(y =>
+            [...Array(y.count).keys()].map(i =>
+              ical.ymd(new Date(+new Date(y.firstdate) + 1000*60*60*24*7 * i))
+            + "\t"+ format_timespan(y).replace(" - ", "\t") +"\t-\tÜbung " + x[0].title_short) )
+      ]);
+
     termine = (""
+      + genDownloadLink(generateIcsDownload(selected),
+                        "beautiful-tucan.ics",
+                        "Ausgewählte Termine downloaden (.ics), zb für Thunderbird/Lightning Calendar").outerHTML
+      + "<br/>"
+      + "<br/>"
       + "Einzel-Termine:<br/><table>"
       + selectedonce
-      +"</table><br/>"
-      + "Wiederholende Termine (zwischen "+ first_to_last(dates) +"):<br/><table>" //+ mkRow(["", "Tag", "Zeit", "Kurs", "Raum"])
+      + "</table><br/>"
+      + "Wiederholende Termine (zwischen "+ first_to_last(dates) +"):<br/><table>" // + mkRow(["", "Tag", "Zeit", "Kurs", "Raum"])
       + selectedweekly
       + "</table><br/>"
     );
@@ -150,25 +274,33 @@ function saveState() {
   var events = pre_events.filter(w =>
     selected.some(y => y.id == w.id) &&
     (!w.room.startsWith("Übung ") || selectuebungs[w.id] === format_weekly(w)));
+  // allocate events into grid, get id
   var assoc = new Map();
   var grid = {};
-  events.forEach(w =>
-    assoc.set(w.id + format_weekly(w), allocate(grid, w.starti, w.endi))
-  );
-  var found = {size:Math.max.apply(Math, [0, ...(grid[0]||[])])};
+  events.forEach(w => {
+    var allocatedId = allocate(grid, w.starti, w.endi);
+    assoc.set(w.id + format_weekly(w), allocatedId);
+  });
+
+  // divide week into timeranges of non-overlapping events,
+  // count distinct events per such timerange
+  var found = {size: Math.max.apply(Math, [0, ...(grid[0]||[])])};
   var subblock = [found];
   for (var t=1; t<times.length; t++) {
+    // if one block and the next have no common element, then reset size to zero
     if (noCommonElement(grid[t]||[], grid[t-1]||[])) found = {size:0};
+    // add distinct elements to size
     if (grid[t]) found.size = Math.max.apply(Math, [found.size, ...grid[t]]);
     subblock[t] = found;
   }
 
 //  var box = main2.getClientRects()[0];
-  var width  = 100;
-  var height = 480;
+  var width       = 100;
+  var height      = 480;
+  var daywidth    = width  / 5;
+  var hourheight  = height / 12;
 
   main2.innerHTML = (""
-//    + "Für Regelstudienzeit sind durchschnittlich jedes Semester 30 CP vorgesehen.<br>"
     + "Du hast "
     + selected
       .map   (module => parseInt(module.credits))
@@ -177,9 +309,9 @@ function saveState() {
     + selected.map(module => module.title_short + " (" + parseInt(module.credits) + "cp)").join(", ")
     + "<br><br>"
 
-    + (Object.keys(uebungs).length === 0 ? "" :
+    + (possibleUebungs.length === 0 ? "" :
         "Kleingruppen wählen:<br>"
-      + Object.entries(uebungs).map(kv =>
+      + possibleUebungs.map(kv =>
         module_by_id[kv[0]].title_short
         + ": <select data-moduleid='"+kv[0]+"'><option>Kleingruppentermin wählen</option>"
         + kv[1].map(v => "<option"+(selectuebungs[kv[0]] === v.substr(1)?" selected":"")+">"+v.substr(1)+"</option>").join("") + "</select>"
@@ -199,34 +331,49 @@ function saveState() {
     + "<div style='position:relative;background:#eee;width:"+width+"%;height:"+height+"px;font-size:0.8em'>"
     + [0,1,2,3,4].map( d=> [...Array(7).keys()].map( h =>
         "<div class=box-c style="+
-        "'width:"+(width/5-2)+"%;top:"+(h*73.33)+"px;left:"+(d*width/5)+"%'></div>"
+        "'width:"+(daywidth-2)+"%;top:"+(h*73.33)+"px;left:"+(d*daywidth)+"%'></div>"
       ).join("")).join("\n")
 
     + selected.map( select => select.weekly.filter(x=>x.count>1).map( week => {
-      var gotassoc = assoc.get(select.id + format_weekly(week));
-      if (gotassoc === undefined) return "";
-      var parallelBlocks = subblock[
-        times.indexOf(week.day*24*60 + week.start[0]*60 + week.start[1])
-      ].size+1;
-      var lshift = width/5/parallelBlocks * gotassoc;
-      var left   = width/5      * week.day + lshift;
-      var top    = height/12/60*10 * ((week.start[0]-8) * 60 + week.start[1])/ 10;
-      var h      = height/12/60*10 * ((week.end[0]-8) * 60 + week.end[1])/ 10 - top;
-      var w      = width/5/parallelBlocks - 2;
-      var desc = select.title_short + " - " + format_timespan(week) + "<br>"
-               + week.count +"x in "+ week.room;
+      var part = assoc.get(select.id + format_weekly(week));
+      if (part === undefined) return "";
+
+      var timesidx = week.day*24*60 + week.start[0]*60 + week.start[1];
+      var parts    = subblock[times.indexOf(timesidx)].size+1;
+
+      var left = daywidth * week.day + part/parts * daywidth;
+      var top  = hourheight * ((week.start[0]-8) + week.start[1]/60);
+      var bot  = hourheight * ((week.end  [0]-8) + week.end  [1]/60);
+      var h    = bot - top;
+      var w    = daywidth/parts - 1;
+
       var dates = Object.values(select.content)
         .flatMap(course => [...course.dates, ...course.uedates])
         .map(x => x.split("\t")[0]);
+
+      var desc  = select.title_short + " - " + format_timespan(week) + "<br>"
+                + week.count +"x in "+ week.room;
       var ldesc = select.title + "\n"
                 + format_timespan(week) + "\n"
                 + week.room + "\n"
                 + "findet " + week.count + " Mal statt\n"
                 + "zwischen " + first_to_last(dates);
-      var class_ = " class='box-b box-b-" + select.id + " color-" + (data.indexOf(select)%colors.length) + "'";
-      var title  = " title='" + ldesc + "'";
-      var style  = " style='position:absolute;top:"+top+"px;left:"+left+"%;width:"+w+"%;height:"+h+"px'";
-      return "<div" + class_ + title + style + ">" + desc + "</div>";
+
+      var c1 = "box-b ";
+      var c2 = "box-b-" + select.id + " ";
+      var c3 = "color-" + (data.indexOf(select)%colors) + " ";
+
+      var s1 = "position:absolute;";
+      var s2 = "top:" + top + "px;";
+      var s3 = "left:" + left + "%;";
+      var s4 = "width:" + w + "%;";
+      var s5 = "height:" + h + "px;";
+
+      var a1 = "class='" + c1 + c2 + c3 + "' ";
+      var a2 = "style='" + s1 + s2 + s3 + s4 + s5 + "' ";
+      var a3 = "title='" + ldesc + "' ";
+
+      return "<div " + a1 + a2 + a3 + ">" + desc + "</div>";
     } ).join("\n")).join("\n")
     + "</div><br>"
     + termine
@@ -261,9 +408,8 @@ function saveState() {
 };
 
 // create div from module
-window.lastSuperCategory = null;
-window.lastCategory = null;
-function moduleDiv(module) {
+//window.lastSuperCategory = null;
+function moduleDiv(module) { // writes to window.lastCategory
   var result = (
     "<span>" + module.credits + "CP</span>"
   + "<span>" + module.title_short + "</span>"
@@ -273,7 +419,7 @@ function moduleDiv(module) {
      + module.owner + "'>" + module.owner_short + "</span>"
   );
 
-  var checker = '<label><input class=checker type="checkbox" id="checker-' + module.id + '"/></label>'
+  var checker = '<label><input class=checker type="checkbox" id="checker-' + module.id + '"/></label>';
 
   var cat = module.category.replace(' ', '-');
   var category = (lastCategory == module.category ? "" :
@@ -288,21 +434,21 @@ function moduleDiv(module) {
   );
   window.lastCategory = module.category;
 
-//  var cat = module.category.replace(' ', '-');
-//  var category_start_html = ('<div class=category>'
-//    + '<input class=toggler type="checkbox" id="toggler-' + cat + '"/>'
-//    + '<label class=toggler for="toggler-' + cat + '"><div class=toggler-show></div>'
-//    + '<b>' + (module.category[0]=="Y" ? module.category.slice(14) : module.category) + '</b><clear/></label>');
+  //  var cat = module.category.replace(' ', '-');
+  //  var category_start_html = ('<div class=category>'
+  //    + '<input class=toggler type="checkbox" id="toggler-' + cat + '"/>'
+  //    + '<label class=toggler for="toggler-' + cat + '"><div class=toggler-show></div>'
+  //    + '<b>' + (module.category[0]=="Y" ? module.category.slice(14) : module.category) + '</b><clear/></label>');
 
-//  var category = (lastSuperCategory == (module.category[0]=="Y") ? (lastCategory == module.category ? "" :
-//      '<br/></div>' + category_start_html
-//  ) :
-//      '<br/></div></div><div class=category>'
-//    + '<input class=toggler type="checkbox" id="toggler-' + (module.category[0]=="Y") + '"/>'
-//    + '<label class=toggler for="toggler-' + (module.category[0]=="Y") + '"><div class=toggler-show></div>'
-//    + '<b>' + module.category[0] + '</b><clear/></label>' + category_start_html );
-//  window.lastSuperCategory = module.category[0]=="Y";
-//  window.lastCategory = module.category;
+  //  var category = (lastSuperCategory == (module.category[0]=="Y") ? (lastCategory == module.category ? "" :
+  //      '<br/></div>' + category_start_html
+  //  ) :
+  //      '<br/></div></div><div class=category>'
+  //    + '<input class=toggler type="checkbox" id="toggler-' + (module.category[0]=="Y") + '"/>'
+  //    + '<label class=toggler for="toggler-' + (module.category[0]=="Y") + '"><div class=toggler-show></div>'
+  //    + '<b>' + module.category[0] + '</b><clear/></label>' + category_start_html );
+  //  window.lastSuperCategory = module.category[0]=="Y";
+  //  window.lastCategory = module.category;
 
   var details = ""; // "<div class=esc>X</div><div class=prev>&lt;</div><div class=next>&gt;</div>";
 
@@ -350,6 +496,7 @@ window.onload = function() {
   window.module_by_id = {};
   data.forEach(x => module_by_id[x.id]=x);
 
+  // put weekly events into
   window.pre_events = data
     .flatMap(x => x.weekly.map(y => ({
       id: x.id, title_short: x.title_short,
@@ -358,7 +505,9 @@ window.onload = function() {
       endi:   y.day * 24*60 + y.end[0]   * 60 + y.end[1],
     })))
     .filter (x => x.count>1)
-    .sort((x,y) => ((y.endi-y.starti) - (x.endi-x.starti))*(5*24*60) + x.starti-y.starti);
+    // sort: longest duration first, then first start time first
+    // important for displaying overlapping dates in calendar
+    .sort((x,y) => ((y.endi-y.starti) - (x.endi-x.starti))*(7*24*60) + x.starti-y.starti);
   window.times = pre_events
     .flatMap(event => [event.starti, event.endi]);
   window.times = [...new Set(times)];
@@ -370,7 +519,9 @@ window.onload = function() {
 
   // show modules
   window.lastCategory = null;
-  main.innerHTML = "<div><details hidden>" + data.map(moduleDiv).join("\n") + "</details></div>";
+  main.innerHTML = "<div><details hidden>"
+    + data.map(moduleDiv).join("\n") // writes to window.lastCategory
+    + "</details></div>";
 
   // load state
   var course_uebung = location.hash.slice(1).split(";");
@@ -383,14 +534,18 @@ window.onload = function() {
         elem.classList[0].replace("er", "ed"));
   });
 
-  // enable toggles
+  // enable checkboxes
   $("input.checker").forEach( x => x.onclick = e => {
     x.parentElement.nextElementSibling.classList.toggle("checked");
     saveState();
   });
-  $(".module-wrapper > summary").forEach(x => x.onclick = () =>
-    $(".module-wrapper > summary").forEach(y => x !== y ? y.parentElement.open = false : ""));
 
+  // opening summary closes other summaries
+  $(".module-wrapper > summary").forEach(x => x.onclick = () =>
+    $(".module-wrapper > summary").forEach(y =>
+      x !== y ? y.parentElement.open = false : ""));
+
+  // keyboard movement
   var esc = () => {
     var modules = $(".module-wrapper > summary");
     modules[modules.findIndex(x => x.parentElement.open)].click();
@@ -409,28 +564,6 @@ window.onload = function() {
     else if (e.keyCode === 39) next();
   };
 
-//  $(".esc") .forEach(but => but.onclick = esc))
-//  $(".prev").forEach(but => but.onclick = prev);
-//  $(".next").forEach(but => but.onclick = next);
-
-
-//  remove_unchecked.onclick = ()=> {
-//    $(".hidden").forEach(delClass("hidden"));
-//    $("input.input")
-//    .filter(x => !x.checked)
-//    .forEach(x => {
-//      x.parentElement.classList.add("hidden");
-//      var y = document.getElementById("item2-" + x.id.substring(x.id.indexOf("-")))
-//      if (y) y.classList.add("hidden");
-//    });
-//  };
-
-
-//  show_all.onclick = function() {
-//    $(".hidden").forEach(delClass("hidden"));
-//  }
-
   saveState();
 }
-// document.addEventListener("pjax:success", window.onload)
 

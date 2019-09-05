@@ -1,0 +1,30 @@
+{
+  "name": "beautiful-tucan",
+  "version": "1.0.0",
+  "description": "~~~ $ git clone --depth 1 https://github.com/drcicero/beautiful-tucan.git $ cd beautiful-tucan $ pip3 install --user -q mechanicalsoup bs4 pystache $ sh make.sh TUID_USER: xxyyxxxx TUID_PASS: xxxxxxxxxxxxxxxxx ~~~",
+  "private": "true",
+  "dependencies": {
+    "ical-generator": "^1.8.1",
+    "moment-timezone": "^0.5.26"
+  },
+  "devDependencies": {
+    "webpack": "^4.39.3",
+    "webpack-cli": "^3.3.7"
+  },
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "init": "webpack --mode=production",
+    "rebuild": "webpack && python3 step2.py",
+    "prod": "webpack --mode=production && python3 step2.py"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/drcicero/beautiful-tucan.git"
+  },
+  "author": "",
+  "license": "GPL-3.0",
+  "bugs": {
+    "url": "https://github.com/drcicero/beautiful-tucan/issues"
+  },
+  "homepage": "https://github.com/drcicero/beautiful-tucan#readme"
+}
