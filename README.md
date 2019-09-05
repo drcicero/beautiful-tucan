@@ -31,5 +31,3 @@ Dependencies:
 This code is based on tucan-crawler by davidgengenbach, which is GPL licenced.
 
 Because our code is based on GPL licenced code, this code is also GPL licenced.
-
-TODO: Add GPL licence file.
