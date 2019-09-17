@@ -97,7 +97,7 @@ def main2():
     current_semester = utils.json_read_or(prefix+"current_semester.json", get_current_semester)
     course_ids  = utils.json_read_or(prefix+"pre-tucan-pflicht.json", download_tucan_vv_pflicht)
     course_ids += utils.json_read_or(prefix+"pre-tucan-wahl.json", download_tucan_vv_wahl)
-    course_ids += utils.json_read_or(prefix+"pre-tucan-search.json", lambda x: download_tucan_vv_search(current_semester))
+    course_ids += utils.json_read_or(prefix+"pre-tucan-search.json", lambda: download_tucan_vv_search(current_semester))
     course_ids  = list(sorted(set(tuple(i) for i in course_ids)))
     courses      = utils.json_read_or(prefix+"tucan.json", get_from_tucan)
 
