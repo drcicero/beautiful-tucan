@@ -1,25 +1,29 @@
 import json, re, datetime, os.path, time, itertools, sys, getpass, traceback
 import multiprocessing as mp
+import multiprocessing.pool
+
+from typing import TypeVar, Callable, Tuple, Dict, Optional, Iterable, Iterator, List
+X = TypeVar("X")
+XS = TypeVar("XS")
+Y = TypeVar("Y")
 
 num_to_day = ["Mo", "Di", "Mi", "Do", "Fr", "Sa", "So"]
 day_to_num = {day:i for i,day in enumerate(num_to_day)}
 
-
-def half_semester(now):
+def half_semester(now: datetime.datetime) -> str:
   return ("Sommer "+ now.strftime("%Y") if 3 <= now.month < 9 else
           "Winter " + now.strftime("%Y") +"/"+ str(int(now.strftime("%Y")[2:])+1))
-def half_semester_filename(now):
+def half_semester_filename(now: datetime.datetime) -> str:
   return (now.strftime("%Y") if 3 <= now.month < 9 else
           now.strftime("%Y") +"-"+ str(int(now.strftime("%Y")[2:])+1))
 
-def fmt_hm(h, m):
+def fmt_hm(h: int, m: int) -> str:
     return str(h).zfill(2) + ":" + str(m).zfill(2)
-
-def parse_hm(h_m):
+def parse_hm(h_m: str) -> Tuple[int, int]:
     h, m = h_m.split(":", 1)
     return int(h), int(m)
 
-def sanitize_date(i):
+def sanitize_date(i: str) -> str:
   # translate germany -> english
   string = (i.replace(".", "")
     .replace("Mär", "Mar")
@@ -28,7 +32,7 @@ def sanitize_date(i):
     .replace("Dez", "Dec"))
   return datetime.datetime.strptime(string, "%d %b %Y").strftime("%Y-%m-%d")
 
-def roman_to_latin_numbers(title):
+def roman_to_latin_numbers(title: str) -> str:
     return (title
             .replace(" I ", " 1 ")
             .replace(" II ", " 2 ")
@@ -37,8 +41,10 @@ def roman_to_latin_numbers(title):
             .replace(" V ", " 5 ")
             )
 
-def remove_bracketed_part(title):
-    return " ".join(re.match("([^(]*)(?:[(][^)]*[)])?(.*)", title).groups())
+def remove_bracketed_part(title: str) -> str:
+    m = re.match("([^(]*)(?:[(][^)]*[)])?(.*)", title)
+    if not m: raise Exception("could not match '([^(]*)(?:[(][^)]*[)])?(.*)' with "+repr(title))
+    return " ".join(m.groups())
 
 
 #def from_stream(tuples):
@@ -58,26 +64,32 @@ def remove_bracketed_part(title):
 #        thing[t[-2]].append(t[-1])
 #    return result
 
-def merge_dict(x, y):
+def merge_dict(x: Dict[X, Y], y: Dict[X, Y]) -> Dict[X, Y]:
     # return {**x, **y}
     z = x.copy()
     z.update(y)
     return z
 
 
-def json_write(path, data):
+def json_write(path: str, data: X) -> None:
     with open(path, "w") as f:
         json.dump(data, f, indent=4, sort_keys=True)
 
-def json_read(path):
-    if not os.path.exists(path):
-        return None
-    with open(path) as f:
-        return json.load(f)
+def file_write(path: str, data: str) -> None:
+    with open(path, "w") as f:
+        f.write(data)
 
-def json_read_or(path, func):
-    result = json_read(path)
-    if result: return result
+def file_read(path: str) -> str:
+    if not os.path.exists(path):
+        return ""
+    with open(path) as f:
+        return f.read()
+
+def json_read_or(path: str, func: Callable[[], X]) -> X:
+    if os.path.exists(path):
+        with open(path) as f:
+            return json.load(f) # type: ignore
+
     a = time.time()
     data = func()
     json_write(path, data)
@@ -85,17 +97,20 @@ def json_read_or(path, func):
     print("\n", "{:0.2f} min".format((b-a)/60))
     return data
 
-def groupby(iterator, key):
+def groupby(iterator: Iterable[X], key: Callable[[X], Y]) -> Iterator[
+Tuple[Y, Iterator[X]]]:
     lst = sorted(iterator, key=key)
     return itertools.groupby(lst, key)
 
 
-def blame(msg, func):
+def blame(msg: str, func: Callable[[], X]) -> Optional[X]:
     try: return func()
     except Exception as e:
-      print("\r(warn: {} cause {} in line {})".format(msg, e, sys.exc_info()[-1].tb_lineno))
+      print("\r(warn: {} cause {} in line {})".format(
+        msg, e, sys.exc_info()[-1].tb_lineno)) # type: ignore
+      return None
 
-def progress(current, maximum):
+def progress(current: int, maximum: int):
     # print a progress bar like [*****-----------]
     MAX = 80
     a = int(current/maximum*MAX)
@@ -103,7 +118,7 @@ def progress(current, maximum):
     sys.stderr.write("\r[" + "*"*a + "."*b + "] " + str(current) + "/" + str(maximum) + " ")
     sys.stderr.flush()
 
-def progresspmap(pool, func, lst):
+def progresspmap(pool: mp.pool.Pool, func: Callable[[X], Y], lst: List[X]) -> List[Y]:
     """ a parallel map with a progressbar. """
     i, maxi, result = 0, len(lst), []
     for item in pool.imap_unordered(func, lst):
@@ -111,7 +126,10 @@ def progresspmap(pool, func, lst):
         i += 1; progress(i, maxi)
     return result
 
-def parallelCrawl(pool, func, args, limit=300):
+def parallelCrawl(pool: mp.pool.Pool,
+                  func: Callable[[Tuple[X, XS]], Tuple[Y, List[Tuple[X, XS]]]],
+                  args: Tuple[X, XS],
+                  limit: int = 300) -> Dict[X, Y]:
     """
     Imagine it works like this:
 
@@ -134,17 +152,17 @@ def parallelCrawl(pool, func, args, limit=300):
     not call the function for the same argument twice.
     """
 
-    result = dict()
+    result: Dict[X, Y] = {}
     event  = mp.Event()
     lock   = mp.Lock()
 
     ready    = 0
     finished = 0
 
-    def fork(args):
+    def fork(args: Tuple[X, XS]):
         nonlocal ready
 
-        def error_cb(exc):
+        def error_cb(exc: BaseException) -> None:
             nonlocal finished
 
             traceback.print_exc()
@@ -153,7 +171,7 @@ def parallelCrawl(pool, func, args, limit=300):
                 if ready == finished: event.set()
             raise exc
 
-        def cb(res):
+        def cb(res: Tuple[Y, List[Tuple[X, XS]]]) -> None:
             nonlocal finished
             try:
                 value, forks = res
@@ -173,14 +191,16 @@ def parallelCrawl(pool, func, args, limit=300):
 
         if args[0] in result: return
         with lock: ready += 1
-        result[args[0]] = None
-        pool.apply_async(func, args, callback=cb, error_callback=error_cb)
+        result[args[0]] = None # type: ignore
+        pool.apply_async(func, args, callback=cb, error_callback=error_cb) # type: ignore
 
     fork(args)
     event.wait()
     return result
 
-def get_config(variable, default=None, is_password=False):
+def get_config(variable: str,
+               default: Optional[str] = None,
+               is_password: bool=False) -> str:
     value = os.environ.get(variable, default)
     if value is not None: return value
     if is_password:       return getpass.getpass(variable + ": ")
