@@ -183,12 +183,13 @@ def download_tucan_vv_search(current_semester):
     print("\ntucan-vv search")
     soup = state.tucan_br.getcached(state.TUCAN_START_URL)
     soup = state.tucan_br.getcached(TUCAN_URL + soup.select_one('li[title="Lehrveranstaltungssuche"] a')['href'])
-    semester_list = [(i.text, i['value']) for i in soup.select('#course_catalogue option')
-                                          if current_semester[0] in i.text and current_semester[1] in i.text]
+    semester_list = [(i.text, i['value'])
+                     for i in soup.select('#course_catalogue option')
+                     if current_semester[0] in i.text and current_semester[1] in i.text]
     print(semester_list)
     return get_courses_of_semester(semester_list[0][1])
 
-def _walk_tucan_list_walk(href):
+def _walk_tucan_list_walk(_, href):
     soup = state.tucan_br.get(TUCAN_URL + href).soup
     navs = soup.select("#searchCourseListPageNavi a")
 
@@ -201,13 +202,14 @@ def _walk_tucan_list_walk(href):
     return (
       [(i.text, clean(i['href']).replace(state.session_key, "[SESSION_KEY]"))
        for i in soup.select("a[name='eventLink']")],
-      [(nav['href'],) for nav in navs] )
+      [(nav.text, nav['href']) for nav in navs] )
 def walk_tucan_list(soup):
     last_link = soup.select("#searchCourseListPageNavi a")[-1]
     limit = int(last_link['class'][0].split("_", 1)[1]) # last page number
+    nav = soup.select_one("#searchCourseListPageNavi .pageNaviLink_1")
     result = pCrawl(
       _walk_tucan_list_walk,
-      (soup.select_one("#searchCourseListPageNavi .pageNaviLink_1")['href'],),
+      (nav.tex, nav['href']),
       limit=limit
     )
     return list(sorted(i for lst in result.values() for i in lst))
