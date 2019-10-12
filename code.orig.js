@@ -41,7 +41,7 @@ window.onerror = function (message, url, lineNo){
 function genDownloadLink(text, filename, linktext) {
   // download file via <a href=data:... download=filename />
   var element = document.createElement('a');
-  element.href = "data:text/plain;charset=utf-8," + encodeURIComponent(text);
+  element.href = "data:text/calendar;charset=utf-8," + encodeURIComponent(text);
   element.download = filename;
   element.textContent = linktext;
   return element;
