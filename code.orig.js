@@ -1,43 +1,19 @@
-import moment from 'moment';
-const icalgen = require('ical-generator');
-
 function generateIcsDownload(selectedCourses) {
-	var cal = icalgen();
-	cal.timezone('Europe/Berlin');
-	console.log(selectedCourses)
-	selectedCourses.forEach(cur => {
-		cur.weekly
-			.filter(w => !w.room.startsWith("Übung ") || selectuebungs[cur.id] === format_weekly(w))
-			.forEach(element => {
-				var startDate = moment.tz(element.firstdate, "YYYY-MM-DD", "Europe/Berlin");
-				var endDate = startDate.clone();
+    var calendardates = selectedCourses
+      .flatMap(module => Object.values(module.content).map(x => [module, x]))
+      .flatMap(x => [
+        ...x[1].dates
+          .map(y => y + "\t" + x[0].title_short),
+        ...x[0].weekly
+          .filter(w => w.room.startsWith("Übung ") && selectuebungs[x[0].id] === format_weekly(w)
+                    || w.room.startsWith("Übungsstunde"))
+          .flatMap(y =>
+            [...Array(y.count).keys()].map(i =>
+              ical.ymd(new Date(+new Date(y.firstdate) + 1000*60*60*24*7 * i))
+            + "\t"+ format_timespan(y).replace(" - ", "\t") +"\t-\tÜbung " + x[0].title_short) )
+      ]);
 
-				startDate.add(element.start[0], 'hours');
-				startDate.add(element.start[1], 'minutes');
-
-				endDate.add(element.end[0], 'hours');
-				endDate.add(element.end[1], 'minutes');
-				console.log(startDate.format());
-				var eventObj = cal.createEvent({
-					start: startDate,
-					end: endDate,
-					summary: cur.title_short,
-					location: element.room
-				});
-				
-				eventObj.timezone('Europe/Berlin');
-				
-				if (element.count > 1) {
-					eventObj.repeating({
-						freq: 'WEEKLY',
-						count: element.count
-					});
-				}
-			});
-	});
-
-	return cal.toURL();
-
+    return ical.vcalendar(calendardates)
 }
 
 // flatMap polyfill
@@ -65,7 +41,7 @@ window.onerror = function (message, url, lineNo){
 function genDownloadLink(text, filename, linktext) {
   // download file via <a href=data:... download=filename />
   var element = document.createElement('a');
-  element.href = text;
+  element.href = "data:text/plain;charset=utf-8," + encodeURIComponent(text);
   element.download = filename;
   element.textContent = linktext;
   return element;

@@ -95,8 +95,9 @@ def main2():
     regulations  = list(inferno.keys())
 
     current_semester = utils.json_read_or(prefix+"current_semester.json", get_current_semester)
-    course_ids  = utils.json_read_or(prefix+"pre-tucan-pflicht.json", download_tucan_vv_pflicht)
-    course_ids += utils.json_read_or(prefix+"pre-tucan-wahl.json", download_tucan_vv_wahl)
+    pflicht     = utils.json_read_or(prefix+"pre-tucan-pflicht.json", download_tucan_vv_pflicht)
+    wahl        = utils.json_read_or(prefix+"pre-tucan-wahl.json", download_tucan_vv_wahl)
+    course_ids  = pflicht + wahl
     course_ids += utils.json_read_or(prefix+"pre-tucan-search.json", lambda: download_tucan_vv_search(current_semester))
     course_ids  = list(sorted(set(tuple(i) for i in course_ids)))
     courses      = utils.json_read_or(prefix+"tucan.json", get_from_tucan)
@@ -117,8 +118,6 @@ def main2():
     modules = utils.json_read_or(prefix + "inferno.json", get_from_inferno)
 
     modules = inner_join(courses, modules)
-    pflicht = utils.json_read(prefix+"pre-tucan-pflicht.json")
-    wahl    = utils.json_read(prefix+"pre-tucan-wahl.json")
     for regulation in regulations:
         module_part = {k:v for k,v in modules.items()
           if regulation in str(v['regulations'])

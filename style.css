@@ -38,6 +38,7 @@ summary b {padding:.5em; padding-bottom:0; display:block}
 .module > span:nth-child(2) {width:3em}
 .module > span:nth-child(3) {flex-grow:1; width:0}
 .module > span:nth-child(4) {width:6em;color:green}
+.module > span:nth-child(5) {width:3em}
 
 .conflicting {background:#eee; opacity:.5}
 .checked .module {background:#f3ffbd; opacity:1}

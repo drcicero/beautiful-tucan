@@ -2,20 +2,24 @@
 <html><head>
   <meta charset=UTF-8>
   <meta name=viewport content="width=device-width, initial-scale=1.0">
-  <title>{{today4}}, {{regulation_short}}, inoffizieller Wochenplaner TU Darmstadt FB Informatik</title>
+  <title>{{semester}}, {{regulation}}, inoffizieller Wochenplaner TU Darmstadt FB Informatik</title>
   <link rel=stylesheet href=style.css>
   <script src="main.js"></script>
 </head><body>
 
   <div id=main3>
-    <h1>{{today4}} {{regulation_short}}</h1>
+    <a href=./index.html>Tucan Wochenplaner</a>
+
+    <h1>{{semester}} {{regulation}}</h1>
+
+    <p>
+      Letztes Update: {{today}}. Datenquellen: Tucan und Inferno.
+    </p>
 
     <p>
       Dies ist der inoffizielle TU Darmstadt FB Informatik Wochenplaner.
-      Die Daten wurden zuletzt am {{today2}} aus Tucan und Inferno gesammelt,
-      (<a href=./index.html>Mehr Informationen</a>).
       Es gilt <b>Benutzung auf eigene Gefahr!</b>,
-      da es nicht so einfach ist die Kurse den richtigen Prüfungsordnunge
+      da es nicht so einfach ist die Kurse automatisch den Prüfungsordnungen
       und Bereichen zuzuordnen.
       Deswegen kann es auftreten, dass bspw. Kurse
       falsch einsortiert werden oder fehlen, oder ähnliches.
@@ -31,10 +35,11 @@
       auf der rechten Seite sieht man die ausgewählten Kurse in der Wochenansicht
       und kann einen Übungsgruppe auswählen,
       falls es für einen der gewählten Kurse Übungsgruppen gibt.
+      Mit den Pfeiltasten Links/Rechts kann man vorwärts rückwärts blättern.
     </p>
 
     <noscript>Please, activate JavaScript to use this list. Thank you. :)</noscript>
-    <div id=main>... Generiere Liste ...</div>
+    <div id=main>{{{content}}}</div>
   </div>
 
   <div id=main2></div>
