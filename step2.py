@@ -8,8 +8,9 @@ def main():
     now     = datetime.datetime.today() # datetime.datetime(2018, 9, 5)
     today   = now.strftime("%Y-%m")
     today2  = now.strftime("%d. %b %Y")
-    today4  = utils.half_semester(now)
-    prefix  = "cache/" # + utils.half_semester_filename(now) + "-"
+    prefix  = "cache/"
+    today4  = utils.json_read(prefix + "current_semester.json")
+    today4  = today4[0] +" "+ today4[1]
     folder  = "gh-pages/"
 
     pflicht = utils.json_read(prefix + "pre-tucan-pflicht.json")

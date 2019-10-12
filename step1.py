@@ -3,6 +3,7 @@
 
 from __future__ import division
 import os, re, sys, dbm, warnings
+from types import SimpleNamespace
 import multiprocessing as mp
 import utils
 
@@ -21,33 +22,28 @@ INFERNO_URL    = "http://inferno.dekanat.informatik.tu-darmstadt.de"
 INFERNO_PREFIX = INFERNO_URL + "/pp/plans/modules/"
 prefix = "cache/"
 
-TUCAN_THIS_SEMESTER_SEARCH_OPTION = "Sommersemester 2019"
-#TUCAN_THIS_SEMESTER_SEARCH_OPTION = "Wintersemester 2018"
-
-# global variables initialized by init in main and subtasks:
-#   dbr, dbw, tucan_browser, inferno_browser
-# the main task will have additional access to the global variable:
-#   pool
+state = SimpleNamespace(
+  # global variables initialized by init in maintask and subtasks:
+  dbr=None, dbw=None, tucan_br=None, inferno_br=None,
+  # global variables only in maintask:
+  pool=None, TUCAN_START_URL=None, session_key=None
+)
 
 def init(inf_cookies, tuc_cookies):
-    global pool, dbr, dbw, tucan_browser, inferno_browser
-
     pid = mp.current_process().name
-    dbr = dbm.open(prefix + "cache.db", "r")            # read
-    dbw = dbm.open(prefix + "cache" + pid + ".db", "n") # write
+    state.dbr = dbm.open(prefix + "cache.db", "r")            # read
+    state.dbw = dbm.open(prefix + "cache" + pid + ".db", "n") # write
 
-    inferno_browser = ms.Browser(soup_config={"features":"lxml"})
-    tucan_browser = ms.Browser(soup_config={"features":"lxml"})
-    inferno_browser.getcached = getcached(inferno_browser)
-    tucan_browser.getcached = getcached(tucan_browser)
+    state.inferno_br = ms.Browser(soup_config={"features":"lxml"})
+    state.tucan_br = ms.Browser(soup_config={"features":"lxml"})
+    state.inferno_br.getcached = getcached(state.inferno_br)
+    state.tucan_br.getcached = getcached(state.tucan_br)
+    for i in inf_cookies: state.inferno_br.get_cookiejar().set_cookie(i)
+    for i in tuc_cookies: state.tucan_br.get_cookiejar().set_cookie(i)
 
-    for i in inf_cookies: inferno_browser.get_cookiejar().set_cookie(i)
-    for i in tuc_cookies: tucan_browser.get_cookiejar().set_cookie(i)
-    pool = None
+    state.pool = None
 
 def main():
-    global pool
-
     # ensure cache exists
     if not os.path.exists(prefix): os.mkdir(prefix)
 
@@ -58,38 +54,37 @@ def main():
     # get session cookies
     credentials = {"username": utils.get_config('TUID_USER'),
                    "password": utils.get_config('TUID_PASS', is_password=True)}
-    inferno_browser = log_into_sso(credentials)
-    tucan_browser = log_into_tucan(credentials)
-    inf_cookies = inferno_browser.get_cookiejar()
-    tuc_cookies = tucan_browser.get_cookiejar()
+    state.inferno_br = log_into_sso(credentials)
+    state.tucan_br = log_into_tucan(credentials)
+    inf_cookies = state.inferno_br.get_cookiejar()
+    tuc_cookies = state.tucan_br.get_cookiejar()
 
     # init main and setup pool init
     init(inf_cookies, tuc_cookies)
-    pool = mp.Pool(POOLSIZE, initializer=init, initargs=(inf_cookies, tuc_cookies))
+    state.pool = mp.Pool(POOLSIZE, initializer=init, initargs=(inf_cookies, tuc_cookies))
 
     main2()
 
     # close databases, so they can be merged and deleted.
-    dbr.close()
-    dbw.close()
-    pool.close(); pool.join()
+    state.dbr.close()
+    state.dbw.close()
+    state.pool.close(); state.pool.join()
 
     # merge multiple cache into one
     mergeCaches()
 
 def mergeCaches():
     dct = {}
-    for f in sorted(os.listdir(prefix)):
-        if f.endswith(".db"):
-            print(f, end=" ")
-            with dbm.open(prefix + f, "r") as db:
-                print(len(db))
-                dct.update(db)
+    
+    for f in sorted(f for f in os.listdir(prefix) if f.endswith(".db")):
+        print(f, end=" ")
+        with dbm.open(prefix + f, "r") as db:
+            print(len(db))
+            dct.update(db)
     with dbm.open(prefix + "cache.db", "n") as db:
         for k,v in dct.items(): db[k] = v
-    for f in sorted(os.listdir(prefix)):
-        if f.endswith(".db") and not f.endswith("cache.db"):
-            os.remove(prefix + f)
+    for f in sorted(f for f in os.listdir(prefix) if f.endswith(".db")):
+        if not f.endswith("cache.db"): os.remove(prefix + f)
 
 def main2():
     get_inferno      = lambda: download_inferno([])
@@ -99,9 +94,10 @@ def main2():
     inferno      = utils.json_read_or(prefix+"pre-inferno.json", get_inferno)
     regulations  = list(inferno.keys())
 
+    current_semester = utils.json_read_or(prefix+"current_semester.json", get_current_semester)
     course_ids  = utils.json_read_or(prefix+"pre-tucan-pflicht.json", download_tucan_vv_pflicht)
     course_ids += utils.json_read_or(prefix+"pre-tucan-wahl.json", download_tucan_vv_wahl)
-    course_ids += utils.json_read_or(prefix+"pre-tucan-search.json", download_tucan_vv_search)
+    course_ids += utils.json_read_or(prefix+"pre-tucan-search.json", lambda: download_tucan_vv_search(current_semester))
     course_ids  = list(sorted(set(tuple(i) for i in course_ids)))
     courses      = utils.json_read_or(prefix+"tucan.json", get_from_tucan)
 
@@ -150,71 +146,86 @@ def _download_inferno_doit(kv):
     formaction, k, v = kv
     print("  * ", k)
     urlopt = "?form=&regularity=" + v
-    soup = inferno_browser.getcached(INFERNO_URL + formaction + urlopt)
+    soup = state.inferno_br.getcached(INFERNO_URL + formaction + urlopt)
     # group entries hierarchically
     toplevel = soup.select_one("#plan div > ul li")
     return (k, dict(flatten_inferno(toplevel, [])))
 def download_inferno(roles):
     print("\ninferno")
     # make new plan, with master computer science 2015, in german
-    soup = inferno_browser.getcached(INFERNO_URL + "/pp/plans?form&lang=de")
+    soup = state.inferno_br.getcached(INFERNO_URL + "/pp/plans?form&lang=de")
 #    lst  = (set(soup.select(".planEntry label a"))
 #          - set(soup.select(".planEntry label a.inactive")))
     form = soup.form
     options = [(form['action'], i.text, i['value'])
                for i in form.select("#_regularity_id option")]
-    return dict(utils.progresspmap(pool, _download_inferno_doit, options))
+    return dict(pMap(_download_inferno_doit, options))
 
 def download_from_inferno(module_ids):
     print("\nfrom inferno" +" " + str(len(module_ids)))
-    return sorted(utils.progresspmap(pool, get_inferno_page, module_ids), key=lambda x: x['module_id'])
+    return sorted(pMap(get_inferno_page, module_ids), key=lambda x: x['module_id'])
 
 def download_from_tucan(coursetitle_url_list):
     print("\nfrom tucan")
-    return sorted(utils.progresspmap(pool, get_tucan_page, coursetitle_url_list), key=lambda x:x['title'])
+    return sorted(pMap(get_tucan_page, coursetitle_url_list), key=lambda x:x['title'])
 
-def download_tucan_vv_search():
-    print("\ntucan-vv search")
-    soup = tucan_browser.getcached(TUCAN_START_URL)
-    soup = tucan_browser.getcached(TUCAN_URL + soup.select_one('li[title="Lehrveranstaltungssuche"] a')['href'])
+def get_courses_of_semester(semester):
+    soup = state.tucan_br.getcached(state.TUCAN_START_URL)
+    soup = state.tucan_br.getcached(TUCAN_URL + soup.select_one('li[title="Lehrveranstaltungssuche"] a')['href'])
     form = ms.Form(soup.select_one("#findcourse"))
-    semester_list = [(i.text, i['value']) for i in soup.select('#course_catalogue option')
-       if TUCAN_THIS_SEMESTER_SEARCH_OPTION in i.text]
-    print(semester_list[0])
-    form['course_catalogue'] = semester_list[0][1] # neustes semester
+    form['course_catalogue'] = semester
     form['with_logo'] = '2' # we need two criteria to start search, this should show everything
     form.choose_submit("submit_search")
-    page = tucan_browser.submit(form, TUCAN_URL + form.form['action'])
+    page = state.tucan_br.submit(form, TUCAN_URL + form.form['action'])
     return walk_tucan_list(page.soup)
 
+def download_tucan_vv_search(current_semester):
+    print("\ntucan-vv search")
+    soup = state.tucan_br.getcached(state.TUCAN_START_URL)
+    soup = state.tucan_br.getcached(TUCAN_URL + soup.select_one('li[title="Lehrveranstaltungssuche"] a')['href'])
+    semester_list = [(i.text, i['value']) for i in soup.select('#course_catalogue option')
+                                          if current_semester[0] in i.text and current_semester[1] in i.text]
+    print(semester_list)
+    return get_courses_of_semester(semester_list[0][1])
+
 def _walk_tucan_list_walk(href):
-    soup = tucan_browser.get(TUCAN_URL + href).soup
+    soup = state.tucan_br.get(TUCAN_URL + href).soup
     navs = soup.select("#searchCourseListPageNavi a")
 
     # the last argument called ,-A00000000000000... is superflous
     # also replace the second to last argument -N3 replace by -N0
-    # note: if clean no longer works, replace cleanup with the identity function
+    # note: this is an optimization; if tucan changes, remove this
     clean = lambda s: ",".join(s.split(",")[:-1])
+    # clean = lambda s: s
 
     return (
-      [(i.text, clean(i['href']).replace(session_key, "[SESSION_KEY]"))
+      [(i.text, clean(i['href']).replace(state.session_key, "[SESSION_KEY]"))
        for i in soup.select("a[name='eventLink']")],
       [(nav['href'],) for nav in navs] )
 def walk_tucan_list(soup):
     last_link = soup.select("#searchCourseListPageNavi a")[-1]
     limit = int(last_link['class'][0].split("_", 1)[1]) # last page number
-    result = utils.parallelCrawl(pool,
+    result = pCrawl(
       _walk_tucan_list_walk,
       (soup.select_one("#searchCourseListPageNavi .pageNaviLink_1")['href'],),
       limit=limit
     )
     return list(sorted(i for lst in result.values() for i in lst))
 
+def get_current_semester():
+    print("\ntucan-vv get current semester")
+    soup = state.tucan_br.getcached(state.TUCAN_START_URL)
+    soup = state.tucan_br.getcached(TUCAN_URL + soup.select_one('li[title="VV"] a')['href'])
+    title = soup.select_one("strong")
+    match = re.match("Vorlesungsverzeichnis des ([^ ]*)semesters ([^ ]*) der Technischen Universität Darmstadt", title.text)
+    print(match[1], match[2])
+    return match[1], match[2]
+
 def download_tucan_vv_pflicht():
     print("\ntucan-vv pflicht FB20")
-    soup = tucan_browser.getcached(TUCAN_START_URL)
-    soup = tucan_browser.getcached(TUCAN_URL + soup.select_one('li[title="VV"] a')['href'])
-    soup = tucan_browser.getcached(TUCAN_URL + [i
+    soup = state.tucan_br.getcached(state.TUCAN_START_URL)
+    soup = state.tucan_br.getcached(TUCAN_URL + soup.select_one('li[title="VV"] a')['href'])
+    soup = state.tucan_br.getcached(TUCAN_URL + [i
         for i in soup.select("#pageContent a")
         if i.text.startswith(" FB20 - Informatik")][0]['href'])
     link = [i for i in soup.select("#pageContent a")
@@ -223,9 +234,9 @@ def download_tucan_vv_pflicht():
 
 def download_tucan_vv_wahl():
     print("\ntucan-vv wahl FB20")
-    soup = tucan_browser.getcached(TUCAN_START_URL)
-    soup = tucan_browser.getcached(TUCAN_URL + soup.select_one('li[title="VV"] a')['href'])
-    soup = tucan_browser.getcached(TUCAN_URL + [i
+    soup = state.tucan_br.getcached(state.TUCAN_START_URL)
+    soup = state.tucan_br.getcached(TUCAN_URL + soup.select_one('li[title="VV"] a')['href'])
+    soup = state.tucan_br.getcached(TUCAN_URL + [i
         for i in soup.select("#pageContent a")
         if i.text.startswith(" FB20 - Informatik")][0]['href'])
     link = [i for i in soup.select("#pageContent a")
@@ -234,8 +245,8 @@ def download_tucan_vv_wahl():
 
 #def download_tucan_vv_catalogue(FBs):
 #    print("\ntucan-vv catalogue FB20")
-#    soup = tucan_browser.getcached(TUCAN_URL)
-#    soup = tucan_browser.getcached(TUCAN_URL + soup.select_one('li[title="VV"] a')['href'])
+#    soup = state.tucan_br.getcached(TUCAN_URL)
+#    soup = state.tucan_br.getcached(TUCAN_URL + soup.select_one('li[title="VV"] a')['href'])
 #    result = []
 #    for FB in FBs:
 #        link = [i for i in soup.select("#pageContent a") if i.text.startswith(" FB"+FB)][0]
@@ -245,7 +256,7 @@ def download_tucan_vv_wahl():
 
 #def download_tucan_anmeldung():
 #    print("\ntucan anmeldung david")
-#    soup = tucan_browser.getcached(TUCAN_URL)
+#    soup = state.tucan_br.getcached(TUCAN_URL)
 #    link = soup.select_one('li[title="Anmeldung"] a')['href']
 #    data = walk_tucan(TUCAN_URL + link)
 #    return data
@@ -254,7 +265,7 @@ isParent = lambda x: "&PRGNAME=REGISTRATION"  in x or "&PRGNAME=ACTION" in x
 isCourse = lambda x: "&PRGNAME=COURSEDETAILS" in x
 isModule = lambda x: "&PRGNAME=MODULEDETAILS" in x
 def _walk_tucan_walk(link, linki):
-    soup = tucan_browser.get(TUCAN_URL + link).soup # links is session-unique ... ?
+    soup = state.tucan_br.get(TUCAN_URL + link).soup # links is session-unique ... ?
     title = linki['title']
     path = linki['path'] + [title]
     print("\r" + "  "*len(linki['path']) + " > " + title)
@@ -275,7 +286,7 @@ def _walk_tucan_walk(link, linki):
 #          {'modules':[title[:10]], 'title':title}) # 'link':link
 
 def walk_tucan(start_page): # limit=None
-    result = utils.parallelCrawl(pool,
+    result = pCrawl(
       _walk_tucan_walk,
       (start_page, dict(title='', path=[])),
       limit=10
@@ -334,7 +345,7 @@ def inner_join(courses, modules):
 # browser
 
 def get_inferno_page(module_id):
-    soup = inferno_browser.getcached(INFERNO_PREFIX + module_id + "?lang=de")
+    soup = state.inferno_br.getcached(INFERNO_PREFIX + module_id + "?lang=de")
     details = extract_inferno_module(soup) or {}
     # TODO get title
     regulations = [i['details']
@@ -348,10 +359,10 @@ def get_tucan_page(title_url):
 
     # if the url list was stored in a previous session,
     # we need to replace the outdated session key in the url with the new one:
-    soup = tucan_browser.getcached(TUCAN_URL + url) # tucan_browser / inferno_browser
+    soup = state.tucan_br.getcached(TUCAN_URL + url) # state.tucan_br / state.inferno_br
 
 #    print("\n=-=-=-=-=-=-=-= BEGIN",
-#          "\nwget --no-cookies --header \"Cookie: cnsc="+ inferno_browser.get_cookiejar().get('cnsc') +"\" \"" + TUCAN_URL + url + "\" -O test.html",
+#          "\nwget --no-cookies --header \"Cookie: cnsc="+ state.inferno_br.get_cookiejar().get('cnsc') +"\" \"" + TUCAN_URL + url + "\" -O test.html",
 #          "\n" + re.sub("[ ]+", " ", soup.text),
 #          "\n=-=-=-=-=-=-=-= END")
     blame = utils.blame
@@ -382,7 +393,7 @@ def merge_course(courses, module):
 # soup extractors
 
 def tucan_extract_links(soup, path):
-    def details(link): return link['href'].replace(session_key, "[SESSION_KEY]"), {
+    def details(link): return link['href'].replace(state.session_key, "[SESSION_KEY]"), {
         'title': link.text.strip(),
         'path': path
     }
@@ -486,12 +497,12 @@ def _get_redirection_link(page):
 
 def getcached(browser):
     def get(url):
-        if url in dbw:
-            soup = bs4.BeautifulSoup(dbw[url], "lxml")
-        elif url in dbr:
-            soup = bs4.BeautifulSoup(dbr[url], "lxml")
+        if url in state.dbw:
+            soup = bs4.BeautifulSoup(state.dbw[url], "lxml")
+        elif url in state.dbr:
+            soup = bs4.BeautifulSoup(state.dbr[url], "lxml")
         else:
-            newurl = url.replace("[SESSION_KEY]", session_key)
+            newurl = url.replace("[SESSION_KEY]", state.session_key)
             response = browser.get(newurl)
             soup = response.soup
             if "Zugang verweigert" in soup.text:
@@ -500,7 +511,7 @@ def getcached(browser):
                 browser.launch_browser(response.soup)
                 print(newurl)
                 assert False
-            dbw[url] = response.content
+            state.dbw[url] = response.content
         return soup
     return get
 
@@ -530,9 +541,8 @@ def log_into_tucan(credentials):
     page = browser.get(TUCAN_URL + redirected_url)
     page = browser.get(_get_redirection_link(page))
 
-    global session_key, TUCAN_START_URL
-    TUCAN_START_URL = page.url
-    session_key = page.url.split("-")[2] # "N000000000000001," == anonymous
+    state.TUCAN_START_URL = page.url
+    state.session_key = page.url.split("-")[2] # "N000000000000001," == anonymous
 
     return browser
 
@@ -551,6 +561,9 @@ def log_into_sso(credentials):
     if message and not 'class="success"' in str(message): raise Exception(message[0])
 
     return browser
+
+def pMap(*a, **kv): return utils.progresspmap(state.pool, *a, **kv)
+def pCrawl(*a, **kv): return utils.parallelCrawl(state.pool, *a, **kv)
 
 ################################################################################
 # main
