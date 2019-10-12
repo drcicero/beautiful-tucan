@@ -160,7 +160,7 @@ def generate_page(data: List[Module2]):
       <span>{{title_short}}</span>
       <span title='{{title}}'>{{title}}</span>
       <span title='{{owner}}'>{{owner_short}}</span>
-      <span title='{{language}}'>{{{language}}}</span>
+      <!-- <span title='{{language}}'>{{{language}}}</span> -->
       <div class=toggler-show></div>
     </summary>
     <div id='details-{{id}}' class=details>{{#details}}
@@ -170,7 +170,7 @@ def generate_page(data: List[Module2]):
   </details>
 </div>""", x)
     gencategory = lambda title, modules: stache("""
-<details class=category open="">
+<details class=category>
   <summary>
     <div class=toggler-show></div>
     <b>{{title}}</b>
@@ -258,9 +258,9 @@ def clean(module_id: str, entry: Module,
     if "B.Sc." in regulation:
       category = category.replace("C. Nebenfach FB 04 (Logik; Numerik; Optimierung; Stochastik)", "0. Pflichtveranstaltungen")
       category = category.replace("Nebenfach", "Fachübergreifend")
-      category = category.replace("Pflichtveranstaltungen", "Mathe und Pflichtveranstaltungen")
+      category = category.replace("0. Pflichtveranstaltungen", "0. Mathe und Pflichtveranstaltungen")
     else:
-      category = category.replace("Pflichtveranstaltung", "Nicht einsortiert")
+      category = category.replace("Pflichtveranstaltungen", "Nicht einsortiert")
 
     # dates
     def pdt(day: str) -> datetime.datetime:
@@ -374,7 +374,6 @@ def clean(module_id: str, entry: Module,
     })
     return result
 
-
 def clean_category(path: str) -> str:
     replacements = [
         # PO 2009
@@ -385,6 +384,7 @@ def clean_category(path: str) -> str:
         ("Projekte, Projektpraktika und ähnliche Veranstaltungen", "B. Praktika"),
         (" \| [^ ]* Prüfungsleistungen", ""),
         (" \| [^|]* \| ([A-Z]*) Studienleistungen \| \\1 (.*)$", " | \\2 /// \\1 "),
+
         # PO 2015
         ("Pflichtbereich", "BSc Pflicht"),
         ("Wahlbereich \| Studienleistungen", "BSc Wahl"),
@@ -396,6 +396,7 @@ def clean_category(path: str) -> str:
         ("Praktika, Projektpraktika und ähnliche Veranstaltungen", "B. Praktika"),
         ("Fachübergreifende Lehrveranstaltungen", "C. Fachübergreifende Lehrveranstaltungen"),
         ("Wahlbereiche \| ", ""),
+
         # common
         ("Praktika in der Lehre", "B. Praktika in der Lehre"),
         ("Praktikum in der Lehre", "B. Praktika in der Lehre"),
@@ -408,7 +409,7 @@ def clean_category(path: str) -> str:
     ]
     for match, result in replacements:
         path = re.sub(match, result, path)
-    if path and not path[:3] in ["A.", "B. ", "C. "]:
+    if path and not path[:3] in ["A. ", "B. ", "C. ", "0. "]:
         path = "A. " + path
     return path
 

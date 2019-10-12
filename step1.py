@@ -113,8 +113,8 @@ def main2():
 
     module_ids  = {module_id for course in courses
                              for module_id in course['modules']}
-    module_ids |= {key       for regulation in regulations
-                             for key in inferno[regulation].keys()}
+    module_ids |= {key       for regulation in inferno.values()
+                             for key in regulation.keys()}
     modules = utils.json_read_or(prefix + "inferno.json", get_from_inferno)
 
     modules = inner_join(courses, modules)
@@ -158,7 +158,19 @@ def download_inferno(roles):
     form = soup.form
     options = [(form['action'], i.text, i['value'])
                for i in form.select("#_regularity_id option")]
-    return dict(pMap(_download_inferno_doit, options))
+    result = dict(pMap(_download_inferno_doit, options))
+
+    # TODO MANUAL OVERRIDES:
+    result["M.Sc. IT-Sicherheit (2015)"]["20-00-0085"] = [
+      "0. Pflichtveranstaltungen", "Einführung in die Kryptographie"]
+    result["M.Sc. IT-Sicherheit (2015)"]["20-00-0219"] = [
+      "0. Pflichtveranstaltungen", "IT-Sicherheit"]
+    result["M.Sc. IT-Sicherheit (2015)"]["20-00-0581"] = [
+      "0. Pflichtveranstaltungen", "Embedded System Security"]
+    result["B.Sc. Informatik (2015)"]["04-00-0120"] = [
+      "0. Mathe und Pflichtveranstaltungen", "Automaten, formale Sprachen und Entscheidbarkeit"]
+    return result
+
 
 def download_from_inferno(module_ids):
     print("\nfrom inferno" +" " + str(len(module_ids)))
