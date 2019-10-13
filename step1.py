@@ -2,12 +2,14 @@
 # -*- coding: utf-8 -*-
 
 from __future__ import division
-import os, re, sys, dbm, warnings
+import os, re, sys, warnings
 from types import SimpleNamespace
 import multiprocessing as mp
 import utils
 
-import mechanicalsoup as ms # GET, POST, cookie requests
+import dbm # type: ignore
+import mechanicalsoup as ms # type: ignore
+
 import bs4                  # html parsing
 warnings.simplefilter('ignore', UserWarning) # ignore bs4 warnings like:
 # """UserWarning: "b'////////'" looks like a filename, not markup.
