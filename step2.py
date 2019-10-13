@@ -50,7 +50,7 @@ Module2 = TypedDict("Module2", {
 def stache(x: str, y: Dict[str, Any]) -> str:
   return pystache.render(x, y) # type: ignore
 
-def main():
+def main() -> None:
     prefix   = "cache/"
     now      = datetime.datetime.today()
     time_ym  = now.strftime("%Y-%m")
@@ -78,7 +78,7 @@ def main():
     page_tmpl  = utils.file_read("page.html")
     index_tmpl = utils.file_read("index.html")
     if os.environ.get("LOGNAME") == "dave":
-      code_tmpl  = utils.file_read("code.orig.js")
+      code_tmpl = utils.file_read("code.orig.js")
     else:
       code_tpml = utils.file_read("dist/main.js")
     style_tmpl = utils.file_read("style.css")
@@ -150,8 +150,8 @@ def main():
     print("finished")
 
 
-def generate_page(data: List[Module2]):
-    genmodule = lambda x: stache("""
+def generate_page(data: List[Module2]) -> str:
+    def genmodule(x: Module2) -> str: return stache("""
 <div class=flex>
   <label><input id='checker-{{id}}' class=checker type=checkbox></label>
   <details class=module-wrapper>
@@ -168,8 +168,9 @@ def generate_page(data: List[Module2]):
       {{#details}}{{{.}}}<br>{{/details}}
     {{/details}}</div>
   </details>
-</div>""", x)
-    gencategory = lambda title, modules: stache("""
+</div>""", x) #type: ignore
+
+    def gencategory(title: str, modules: str) -> str: return stache("""
 <details class=category>
   <summary>
     <div class=toggler-show></div>
@@ -178,11 +179,12 @@ def generate_page(data: List[Module2]):
   <clear></clear>
   {{{modules}}}
 </details>
-<br>""", {"title": title, "modules": modules})
+<br>""", {"title": title, "modules": modules}) # type: ignore
+
     result = ""
     for c, modules in utils.groupby(data, lambda x: x["category"]):
-      modules = "\n\n".join(genmodule(m) for m in modules)
-      result += gencategory(c, modules)
+      str_modules = "\n\n".join(genmodule(m) for m in modules)
+      result += gencategory(c, str_modules)
     return result
 
 
@@ -314,7 +316,7 @@ def clean(module_id: str, entry: Module,
     ] + [
       "Kurs: " + v['title'] for k,v in entry["content"].items()
     ])
-    datedetail = []
+    date_detail: List[Entry] = []
     if dates:
       firstdate = min(dates).split("\t")[0]
       lastdate  = max(dates).split("\t")[0]
@@ -333,13 +335,16 @@ def clean(module_id: str, entry: Module,
           x["start"][0], x["start"][1],
           x["end"][0], x["end"][1],
           x["room"])
-      datedetail = [{"details": "<br>".join("* " + dt2str(i) for i in alldates["weekly"]),
-                     "title":"Termine zwischen " + firstdate + " und " + lastdate}]
+      date_detail = [
+        {"details": "<br>".join("* " + dt2str(i) for i in alldates["weekly"]),
+         "title":"Termine zwischen " + firstdate + " und " + lastdate}]
+    modul_detail: List[Entry] = [{"details":modul_kurs_title, "title":"Modul und Kurs"}]
+    break_detail: List[Entry] = [{"details":"<br><hr><b>Modul: "+title+"</b><br>", "title":""}]
     entry["details"].extend(
-        [{"details":modul_kurs_title, "title":"Modul und Kurs"}]
-      + datedetail
+        modul_detail
+      + date_detail
       + early
-      + [{"details":"<br><hr><b>Modul: "+title+"</b><br>", "title":""}]
+      + break_detail
       + late
     )
     for k,course in entry['content'].items():

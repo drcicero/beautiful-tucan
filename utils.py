@@ -110,7 +110,7 @@ def blame(msg: str, func: Callable[[], X]) -> Optional[X]:
         msg, e, sys.exc_info()[-1].tb_lineno)) # type: ignore
       return None
 
-def progress(current: int, maximum: int):
+def progress(current: int, maximum: int) -> None:
     # print a progress bar like [*****-----------]
     MAX = 80
     a = int(current/maximum*MAX)
@@ -159,7 +159,7 @@ def parallelCrawl(pool: mp.pool.Pool,
     ready    = 0
     finished = 0
 
-    def fork(args: Tuple[X, XS]):
+    def fork(args: Tuple[X, XS]) -> None:
         nonlocal ready
 
         def error_cb(exc: BaseException) -> None:
@@ -192,7 +192,7 @@ def parallelCrawl(pool: mp.pool.Pool,
         if args[0] in result: return
         with lock: ready += 1
         result[args[0]] = None # type: ignore
-        pool.apply_async(func, args, callback=cb, error_callback=error_cb) # type: ignore
+        pool.apply_async(func, args, callback=cb, error_callback=error_cb)
 
     fork(args)
     event.wait()
