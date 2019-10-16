@@ -1,8 +1,8 @@
 # RUN
 
+Clone this repo, enter repo-folder and:
+
 ~~~
-$ git clone --depth 1 https://github.com/drcicero/beautiful-tucan.git
-$ cd beautiful-tucan
 $ pip3 install --user -q mechanicalsoup bs4 pystache mypy
 $ npm install
 $ npm run init
