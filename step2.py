@@ -80,7 +80,7 @@ def main() -> None:
     if os.environ.get("LOGNAME") == "dave":
       code_tmpl = utils.file_read("code.orig.js")
     else:
-      code_tpml = utils.file_read("dist/main.js")
+      code_tmpl = utils.file_read("dist/main.js")
     style_tmpl = utils.file_read("style.css")
 
     def filename(reg: str) -> str:
