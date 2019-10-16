@@ -20,7 +20,7 @@ POOLSIZE = 16 # 32  -->  ~3min
 
 SSO_URL        = "https://sso.tu-darmstadt.de"
 TUCAN_URL      = "https://www.tucan.tu-darmstadt.de"
-INFERNO_URL    = "http://inferno.dekanat.informatik.tu-darmstadt.de"
+INFERNO_URL    = "http://imap.dekanat.informatik.tu-darmstadt.de"
 INFERNO_PREFIX = INFERNO_URL + "/pp/plans/modules/"
 prefix = "cache/"
 
