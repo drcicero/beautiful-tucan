@@ -3,7 +3,7 @@
 ~~~
 $ git clone --depth 1 https://github.com/drcicero/beautiful-tucan.git
 $ cd beautiful-tucan
-$ pip3 install --user -q mechanicalsoup bs4 pystache mypy
+$ pip3 install --user -q mechanicalsoup pystache mypy
 $ npm install
 $ npm run init
 $ sh make.sh
@@ -27,7 +27,6 @@ This code is based on tucan-crawler by davidgengenbach, which is GPL licenced.
 Because our code is based on GPL licenced code, this code is also GPL licenced.
 
 Dependencies:
-* bs4 (beautifulsoup) is MIT licenced.
 * mechanicalsoup is MIT licenced.
 * pystache is MIT licenced.
 * python / mypy is Python Software Foundation License (PSF).

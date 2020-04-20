@@ -166,7 +166,7 @@ def generate_page(data: List[Module2]) -> str:
     <div id='details-{{id}}' class=details>{{#details}}
       <b>{{title}}</b><br>
       {{#details}}{{{.}}}<br>{{/details}}
-    {{/details}}</div>
+    <!-- "> --></a>{{/details}}</div>
   </details>
 </div>""", x) #type: ignore
 
@@ -260,9 +260,9 @@ def clean(module_id: str, entry: Module,
     if "B.Sc." in regulation:
       category = category.replace("C. Nebenfach FB 04 (Logik; Numerik; Optimierung; Stochastik)", "0. Pflichtveranstaltungen")
       category = category.replace("Nebenfach", "Fachübergreifend")
-      category = category.replace("0. Pflichtveranstaltungen", "0. Mathe und Pflichtveranstaltungen")
+      category = category.replace("0. Pflichtveranstaltungen", "0. Mathe und Pflicht; und nicht einsortierte Veranstaltungen)")
     else:
-      category = category.replace("Pflichtveranstaltungen", "Nicht einsortiert")
+      category = category.replace("Pflichtveranstaltungen", "Nicht einsortierte Veranstaltungen")
 
     # dates
     def pdt(day: str) -> datetime.datetime:
