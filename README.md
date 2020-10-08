@@ -21,6 +21,16 @@ for example via cp or rsync:
 $ cp -v -r gh-pages/* ~/.public_html/beautiful-tucan/
 ~~~
 
+## Docker
+
+Alternatively, it is also possible to perform build and run using Docker:
+
+~~~
+docker build -t beautiful-tucan .
+docker run --rm -e TUID_USER=<TU_USER> -e TUID_PASS=<TU_PASSWORD> -v <OUTPUT_PATH>:/dist beautiful-tucan
+~~~
+
+
 # LICENCE
 
 This code is based on tucan-crawler by davidgengenbach, which is GPL licenced.
