@@ -1,26 +1,25 @@
-# INSTALL
-
-~~~
-$ pip3 install --user -q mechanicalsoup pystache mypy
-~~~
-
-This will install mechanicalsoup, bs4, pystache and mypy as dependencies.
-
 # RUN
 
-~~~
-$ TUID_USER=xxyyxxxx TUID_PASS=xxxxxxxxxxxx sh make.sh
-~~~
 
-Download data from tucan and inferno into a directory called 'cache', and
-create html+js+css files in a directory called 'gh-pages'.
+ *  Install mechanicalsoup, bs4, pystache and mypy as dependencies:
 
-Now copy the contents of gh-pages to a directory that is served by a webserver,
-for example via cp or rsync:
+    ~~~
+    $ pip3 install --user -q mechanicalsoup pystache mypy
+    ~~~
 
-~~~
-$ cp -v -r gh-pages/* ~/.public_html/beautiful-tucan/
-~~~
+ *  Download data from tucan and inferno into a directory called 'cache', and
+    create html+js+css files in a directory called 'gh-pages'.
+
+    ~~~
+    $ TUID_USER=xxyyxxxx TUID_PASS=xxxxxxxxxxxx sh make.sh
+    ~~~
+
+ *  Now copy the contents of gh-pages to a directory that is served by a webserver,
+    for example via cp or rsync:
+
+    ~~~
+    $ cp -v -r gh-pages/* ~/.public_html/beautiful-tucan/
+    ~~~
 
 ## Docker
 
@@ -32,14 +31,21 @@ docker run --rm -e TUID_USER=<TU_USER> -e TUID_PASS=<TU_PASSWORD> -v <OUTPUT_PAT
 ~~~
 
 ## moment.js
-If you want to use moment.js to generate ical files instead of just string manipulation, run
+If you want to use moment.js to generate ical files instead of just string manipulation,
+run before doing anything:
 
 ~~~
 $ npm install
 $ npm run init
 ~~~
 
-before doing anything.
+Or use the npm.Dockerfile.
+
+~~~
+docker build -t beautiful-tucan -f npm.Dockerfile .
+docker run --rm -e TUID_USER=<TU_USER> -e TUID_PASS=<TU_PASSWORD> -v <OUTPUT_PATH>:/dist beautiful-tucan
+~~~
+
 
 # LICENCE
 
