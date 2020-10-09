@@ -174,10 +174,7 @@ def main2() -> None:
 
     if True:
         # test support for other FBs, here FB 13:
-        module_part = {k:v for k,v in modules.items()
-          if k.startswith("13-")
-        }
-        short_regulation = "".join(c for c in regulation if c.isalnum())
+        module_part = {k:v for k,v in modules.items() if k.startswith("13-") }
         utils.json_write(prefix+'-BauUmwelt.json', module_part)
 
     print()
@@ -241,7 +238,6 @@ def download_tucan_vv_search(current_semester: str) -> List[Tuple[str, str]]:
     semester_list = [(i.text, i['value'])
                      for i in soup.select('#course_catalogue option')
                      if current_semester[0] in i.text and current_semester[1] in i.text]
-    print(semester_list)
     return get_courses_of_semester(semester_list[0][1])
 
 def _walk_tucan_list_walk(_, href):
@@ -272,10 +268,17 @@ def walk_tucan_list(soup):
 def get_current_semester():
     print("\ntucan-vv get current semester")
     soup = state.tucan_br.getcached(state.TUCAN_START_URL)
-    soup = state.tucan_br.getcached(TUCAN_URL + soup.select_one('li[title="VV"] a')['href'])
+    vv_link = soup.select_one('li[title="VV"] a')
+    if vv_link == None:
+      print("===============")
+      print("Tucan stores your language preference on the server.")
+      print("Please set tucan to german to continue.")
+      print("===============")
+      sys.exit()
+    soup = state.tucan_br.getcached(TUCAN_URL + vv_link['href'])
     title = soup.select_one("strong")
     match = re.match("Vorlesungsverzeichnis des ([^ ]*)semesters ([^ ]*) der Technischen Universität Darmstadt", title.text)
-    print(match[1], match[2])
+    print("Semester:", match[1], match[2])
     return match[1], match[2]
 
 def download_tucan_vv_pflicht() -> List[Tuple[str, str]]:
