@@ -55,15 +55,14 @@ def main() -> None:
     now      = datetime.datetime.today()
     time_ym  = now.strftime("%Y-%m")
     time_dmy = now.strftime("%d. %b %Y")
-    semester = utils.json_read_or(prefix + "current_semester.json",
-                                  lambda: "Undefined Semester")
+    semester = utils.json_read(prefix + "current_semester.json", None)
     semester = semester[0] +" "+ semester[1]
     folder   = "gh-pages/"
 
     pflicht: List[Tuple[str, str]] = []
     fields: Dict[str, Dict[str, Tuple[str, str]]] = {}
-    pflicht = utils.json_read_or(prefix + "pre-tucan-pflicht.json", lambda: pflicht)
-    fields = utils.json_read_or(prefix + "pre-inferno.json", lambda: fields)
+    pflicht = utils.json_read(prefix + "pre-tucan-pflicht.json", pflicht)
+    fields = utils.json_read(prefix + "pre-inferno.json", fields)
 
     #nebenfach = utils.json_read("nebenfach.json")
 #    back = utils.groupby(((course, major +" · "+ category)
@@ -75,12 +74,15 @@ def main() -> None:
 #    fields = [back] + list(fields.values())
 #    print(json.dumps(fields, indent=2))
 
+    # dist/main.js with npm; code.orig.js without npm
+    if os.path.exists("dist/main.js"):
+      CODE_FILE = "dist/main.js"
+    else:
+      CODE_FILE = "code.orig.js"
+
     page_tmpl  = utils.file_read("page.html")
     index_tmpl = utils.file_read("index.html")
-    if os.environ.get("LOGNAME") == "dave":
-      code_tmpl = utils.file_read("code.orig.js")
-    else:
-      code_tmpl = utils.file_read("dist/main.js")
+    code_tmpl  = utils.file_read(CODE_FILE)
     style_tmpl = utils.file_read("style.css")
 
     def filename(reg: str) -> str:
@@ -125,11 +127,11 @@ def main() -> None:
     utils.file_write(folder + "/main.js", code_tmpl)
     utils.file_write(folder + "/style.css", style_tmpl)
 
+    print(regulations)
     for regulation, display_regulation, href in regulations:
         print(prefix + "-" + filename(regulation) + ".json")
         modules: Dict[str, Module] = {}
-        modules = utils.json_read_or(prefix + "-" + filename(regulation) + ".json",
-                                     lambda: modules)
+        modules = utils.json_read(prefix + "-" + filename(regulation) + ".json", modules)
         if modules == []: continue # if file exists
 
         data = [clean(module_id, module, fields, regulation)
@@ -166,7 +168,7 @@ def generate_page(data: List[Module2]) -> str:
     <div id='details-{{id}}' class=details>{{#details}}
       <b>{{title}}</b><br>
       {{#details}}{{{.}}}<br>{{/details}}
-    {{/details}}</div>
+    <!-- "> --></a>{{/details}}</div>
   </details>
 </div>""", x) #type: ignore
 
@@ -260,9 +262,9 @@ def clean(module_id: str, entry: Module,
     if "B.Sc." in regulation:
       category = category.replace("C. Nebenfach FB 04 (Logik; Numerik; Optimierung; Stochastik)", "0. Pflichtveranstaltungen")
       category = category.replace("Nebenfach", "Fachübergreifend")
-      category = category.replace("0. Pflichtveranstaltungen", "0. Mathe und Pflichtveranstaltungen")
+      category = category.replace("0. Pflichtveranstaltungen", "0. Mathe und Pflicht; und nicht einsortierte Veranstaltungen)")
     else:
-      category = category.replace("Pflichtveranstaltungen", "Nicht einsortiert")
+      category = category.replace("Pflichtveranstaltungen", "Nicht einsortierte Veranstaltungen")
 
     # dates
     def pdt(day: str) -> datetime.datetime:

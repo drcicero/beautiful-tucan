@@ -24,7 +24,7 @@ def parse_hm(h_m: str) -> Tuple[int, int]:
     return int(h), int(m)
 
 def sanitize_date(i: str) -> str:
-  # translate germany -> english
+  # translate german -> english
   string = (i.replace(".", "")
     .replace("Mär", "Mar")
     .replace("Mai", "May")
@@ -84,6 +84,12 @@ def file_read(path: str) -> str:
         return ""
     with open(path) as f:
         return f.read()
+
+def json_read(path: str, default: X) -> X:
+    if os.path.exists(path):
+        with open(path) as f:
+            return json.load(f) # type: ignore
+    raise
 
 def json_read_or(path: str, func: Callable[[], X]) -> X:
     if os.path.exists(path):
