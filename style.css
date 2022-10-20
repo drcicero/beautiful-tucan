@@ -51,6 +51,12 @@ summary b {padding:.5em; padding-bottom:0; display:block}
   #main2 {position: fixed; top:0; right:0; height: 100vh; overflow-y:scroll; padding:3em 1em}
 }
 
+/* print the right pane only */
+@media print {
+  #main2 {width: 100%}
+  #main3 {display: none}
+}
+
 .color-0 {background: hsl(0,100%,80%)}
 .color-1 {background: hsl(60,100%,80%)}
 .color-2 {background: hsl(120,100%,80%)}
