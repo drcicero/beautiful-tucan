@@ -4,10 +4,10 @@ Data from www.inferno.tu-darmstadt.de (course -> regulation, course -> credit po
 
 # RUN
 
- *  Install mechanicalsoup, bs4, pystache and mypy as dependencies:
+ *  Install mechanicalsoup, bs4, pystache, sqlite_dbm and mypy as dependencies:
 
     ~~~
-    $ pip3 install --user -q mechanicalsoup pystache mypy
+    $ pip3 install --user -q mechanicalsoup pystache mypy sqlite_dbm
     ~~~
 
  *  Download data from tucan and inferno into a directory called 'cache', and

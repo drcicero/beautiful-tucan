@@ -7,7 +7,7 @@ from types import SimpleNamespace
 import multiprocessing as mp
 import utils
 
-import dbm # type: ignore
+import sqlite_dbm as dbm # type: ignore
 import mechanicalsoup as ms # type: ignore
 
 import bs4                  # html parsing
@@ -64,8 +64,8 @@ state = SimpleNamespace(
 
 def init(inf_cookies: List[str], tuc_cookies: List[str]) -> None:
     pid = mp.current_process().name
-    state.dbr = dbm.open(prefix + "cache.db", "r")            # read
-    state.dbw = dbm.open(prefix + "cache" + pid + ".db", "n") # write
+    state.dbr = dbm.open(prefix + "cache", "r")       # read
+    state.dbw = dbm.open(prefix + "cache" + pid, "n") # write
 
     state.inferno_br = ms.Browser(soup_config={"features":"lxml"})
     state.tucan_br = ms.Browser(soup_config={"features":"lxml"})
@@ -108,13 +108,18 @@ def main() -> None:
 
 def mergeCaches() -> None:
     dct: Dict[str, str] = {}
+    #print(os.listdir(prefix))
     for f in sorted(f for f in os.listdir(prefix) if f.endswith(".db")):
         print(f, end=" ")
-        with dbm.open(prefix + f, "r") as db:
+        db = dbm.open(prefix + f[:-3], "r")
             print(len(db))
             dct.update(db)
-    with dbm.open(prefix + "cache.db", "n") as db:
+        db.close()
+    #print(os.listdir(prefix))
+    db = dbm.open(prefix + "cache", "n")
         for k,v in dct.items(): db[k] = v
+    db.close()
+    #print(os.listdir(prefix))
     for f in sorted(f for f in os.listdir(prefix) if f.endswith(".db")):
         if not f.endswith("cache.db"): os.remove(prefix + f)
 
@@ -277,7 +282,8 @@ def get_current_semester():
       sys.exit()
     soup = state.tucan_br.getcached(TUCAN_URL + vv_link['href'])
     title = soup.select_one("strong")
-    match = re.match("Vorlesungsverzeichnis des ([^ ]*)semesters ([^ ]*) der Technischen Universität Darmstadt", title.text)
+    match = re.match("Vorlesungsverzeichnis des ([^ ]*)semesters? ([^ ]*) der Technischen Universität Darmstadt", title.text)
+    print(title)
     print("Semester:", match[1], match[2])
     return match[1], match[2]
 
@@ -615,12 +621,12 @@ def log_into_sso(credentials) -> ms.Browser:
 
     #page = browser.get(page.soup.select('meta[http-equiv="refresh"]')[0].url)
     form = ms.Form(page.soup.select('form[action="/idp/profile/cas/login?execution=e1s1"]')[0])
-    print(page.soup)
+    #print(page.soup)
     form["j_username"] = credentials["username"]
     form["j_password"] = credentials["password"]
-    print(form, page.url)
+    #print(form, page.url)
     page = browser.submit(form, page.url)
-    print(page.soup)
+    #print(page.soup)
 
     message = page.soup.select("#msg")
     if message and not 'class="success"' in str(message): raise Exception(message[0])
