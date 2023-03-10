@@ -112,12 +112,12 @@ def mergeCaches() -> None:
     for f in sorted(f for f in os.listdir(prefix) if f.endswith(".db")):
         print(f, end=" ")
         db = dbm.open(prefix + f[:-3], "r")
-            print(len(db))
-            dct.update(db)
+        print(len(db))
+        dct.update(db)
         db.close()
     #print(os.listdir(prefix))
     db = dbm.open(prefix + "cache", "n")
-        for k,v in dct.items(): db[k] = v
+    for k,v in dct.items(): db[k] = v
     db.close()
     #print(os.listdir(prefix))
     for f in sorted(f for f in os.listdir(prefix) if f.endswith(".db")):
