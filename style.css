@@ -54,6 +54,8 @@ summary b {padding:.5em; padding-bottom:0; display:block}
 /* print the right pane only */
 @media print {
   #main2 {width: 100%}
+  #main21 {display: none}
+  #main22 {display: none}
   #main3 {display: none}
 }
 

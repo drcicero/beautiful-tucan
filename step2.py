@@ -82,7 +82,7 @@ def main() -> None:
 
     page_tmpl  = utils.file_read("page.html")
     index_tmpl = utils.file_read("index.html")
-    code_tmpl  = utils.file_read(CODE_FILE)
+    code_tmpl  = utils.file_read(CODE_FILE) + utils.file_read("code.common.js")
     style_tmpl = utils.file_read("style.css")
 
     def filename(reg: str) -> str:

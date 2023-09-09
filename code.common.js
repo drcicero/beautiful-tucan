@@ -1,44 +1,4 @@
-import moment from 'moment';
-const icalgen = require('ical-generator');
-
-function generateIcsDownload(selectedCourses) {
-	var cal = icalgen();
-	cal.timezone('Europe/Berlin');
-	console.log(selectedCourses)
-	selectedCourses.forEach(cur => {
-		cur.weekly
-			.filter(w => !w.room.startsWith("Übung ") || selectuebungs[cur.id] === format_weekly(w))
-			.forEach(element => {
-				var startDate = moment.tz(element.firstdate, "YYYY-MM-DD", "Europe/Berlin");
-				var endDate = startDate.clone();
-
-				startDate.add(element.start[0], 'hours');
-				startDate.add(element.start[1], 'minutes');
-
-				endDate.add(element.end[0], 'hours');
-				endDate.add(element.end[1], 'minutes');
-				console.log(startDate.format());
-				var eventObj = cal.createEvent({
-					start: startDate,
-					end: endDate,
-					summary: cur.title_short,
-					location: element.room
-				});
-				
-				eventObj.timezone('Europe/Berlin');
-				
-				if (element.count > 1) {
-					eventObj.repeating({
-						freq: 'WEEKLY',
-						count: element.count
-					});
-				}
-			});
-	});
-
-	return cal.toURL();
-
-}
+// requires the function generateIcsDownload() to be defined
 
 // flatMap polyfill
 if (!Array.prototype.flatMap) {
@@ -69,65 +29,6 @@ function genDownloadLink(text, filename, linktext) {
   element.download = filename;
   element.textContent = linktext;
   return element;
-}
-
-var ical = {
-  vdt: d => d.getFullYear()
-            + (d.getMonth()+1+"").padStart(2,'0')
-            + (d.getDate()+"").padStart(2,'0')
-            + "T"
-            + (d.getHours()+"").padStart(2,'0')
-            + (d.getMinutes()+"").padStart(2,'0')
-            + (d.getSeconds()+"").padStart(2,'0'),
-
-  ymd: d => d.getFullYear() + "-"
-            + (d.getMonth()+1+"").padStart(2,'0') + "-"
-            + (d.getDate()+"").padStart(2,'0'),
-
-  vcalendar: function (dates) {
-    var dates = dates.map(date => {
-      var x = date.split("\t");
-      return {start:new Date(x[0] + "T" + x[1]),
-              end: new Date(x[0] + "T" + x[2]),
-              title: x[4],
-              location: x[3],};
-    });
-
-    return "BEGIN:VCALENDAR"
-      + "\nPRODID:-//Beautiful Tucan via Javascript//DE"
-      + "\nVERSION:2.0"
-      + "\nBEGIN:VTIMEZONE"
-      + "\nTZID:Europe/Berlin"
-      + "\nBEGIN:DAYLIGHT"
-      + "\nTZOFFSETFROM:+0100"
-      + "\nTZOFFSETTO:+0200"
-      + "\nTZNAME:CEST"
-      + "\nDTSTART:19700329T020000"
-      + "\nRRULE:FREQ=YEARLY;BYDAY=-1SU;BYMONTH=3"
-      + "\nEND:DAYLIGHT"
-      + "\nBEGIN:STANDARD"
-      + "\nTZOFFSETFROM:+0200"
-      + "\nTZOFFSETTO:+0100"
-      + "\nTZNAME:CET"
-      + "\nDTSTART:19701025T030000"
-      + "\nRRULE:FREQ=YEARLY;BYDAY=-1SU;BYMONTH=10"
-      + "\nEND:STANDARD"
-      + "\nEND:VTIMEZONE"
-      + dates.map(ical.vevent).join("")
-      + "\nEND:VCALENDAR";
-  },
-
-  vevent: function (date) {
-    return ""
-      + "\nBEGIN:VEVENT"
-      + "\nUID:" + Math.floor(Math.random()*0xffffffff).toString(16)
-      + "\nDTSTAMP:" + ical.vdt(new Date())
-      + "\nDTSTART;TZID=Europe/Berlin:" + ical.vdt(date.start)
-      + "\nDTEND;TZID=Europe/Berlin:"   + ical.vdt(date.end)
-      + "\nSUMMARY:" + date.title
-      + "\nLOCATION:" + date.location
-      + "\nEND:VEVENT";
-  }
 }
 
 // defs
@@ -287,6 +188,7 @@ function saveState() {
   var hourheight  = height / 12;
 
   main2.innerHTML = (""
+    + "<div id=main21>"
     + "Du hast "
     + selected
       .map   (module => parseInt(module.credits))
@@ -294,17 +196,21 @@ function saveState() {
     +" CP in folgenden Kursen ausgewählt:<br>"
     + selected.map(module => module.title_short + " (" + parseInt(module.credits) + "cp)").join(", ")
     + "<br><br>"
+    + "</div>"
 
+    + "<div id=main22>"
     + (possibleUebungs.length === 0 ? "" :
         "Kleingruppen wählen:<br>"
       + possibleUebungs.map(kv =>
-        module_by_id[kv[0]].title_short
-        + ": <select data-moduleid='"+kv[0]+"'><option>Kleingruppentermin wählen</option>"
+        "<select data-moduleid='"+kv[0]+"'><option>Kleingruppentermin wählen</option>"
         + kv[1].map(v => "<option"+(selectuebungs[kv[0]] === v.substr(1)?" selected":"")+">"+v.substr(1)+"</option>").join("") + "</select>"
+        + module_by_id[kv[0]].title_short
       ).join("<br>")
       + "<br><br>"
     )
+    + "</div>"
 
+    + "<div id=main23>"
     + "Wochen-Kalender:"
     + "<table style=width:100%>"
       + "<td style=width:20%>Mo</td>"
@@ -361,9 +267,12 @@ function saveState() {
 
       return "<div " + a1 + a2 + a3 + ">" + desc + "</div>";
     } ).join("\n")).join("\n")
-    + "</div><br>"
-    + termine
-    + selected.map(x => x.title_short +": "+ x.title).join("<br/>")
+    + "</div>"
+    + "</div>"
+    + "<br/>"
+
+    + "<div id=main24>" + termine + "</div>"
+    + "<div id=main25>" + selected.map(x => x.title_short +": "+ x.title).join("<br/>") + "</div>"
   );
 
   $("select").forEach(x => x.onchange = e => {
@@ -442,22 +351,23 @@ window.onload = function() {
   });
 
   // opening summary closes other summaries
-  $(".module-wrapper > summary").forEach(x => x.onclick = () =>
-    $(".module-wrapper > summary").forEach(y =>
+  var modules = $(".module-wrapper > summary")
+  modules.forEach(x => x.onclick = () =>
+    modules.forEach(y =>
       x !== y ? y.parentElement.open = false : ""));
 
   // keyboard movement
   var esc = () => {
-    var modules = $(".module-wrapper > summary");
-    modules[modules.findIndex(x => x.parentElement.open)].click();
+    var module = modules[modules.findIndex(x => x.parentElement.open)];
+    if (module) module.click();
   };
   var prev = () => {
-    var modules = $(".module-wrapper > summary");
-    modules[modules.findIndex(x => x.parentElement.open)-1].click();
+    var module = modules[modules.findIndex(x => x.parentElement.open)-1];
+    if (module) module.click();
   };
   var next = () => {
-    var modules = $(".module-wrapper > summary");
-    modules[modules.findIndex(x => x.parentElement.open)+1].click();
+    var module = modules[modules.findIndex(x => x.parentElement.open)+1];
+    if (module) module.click();
   };
   document.onkeyup = (e) => {
     if      (e.keyCode === 27) esc();

@@ -5,7 +5,7 @@
   "private": "true",
   "dependencies": {
     "ical-generator": "^1.8.1",
-    "moment-timezone": "^0.5.26"
+    "moment-timezone": "^0.5.41"
   },
   "devDependencies": {
     "webpack": "^4.39.3",

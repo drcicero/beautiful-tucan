@@ -282,7 +282,7 @@ def get_current_semester():
       sys.exit()
     soup = state.tucan_br.getcached(TUCAN_URL + vv_link['href'])
     title = soup.select_one("strong")
-    match = re.match("Vorlesungsverzeichnis des ([^ ]*)semesters? ([^ ]*) der Technischen Universität Darmstadt", title.text)
+    match = re.match(r"Vorlesungsverzeichnis des ([^ ]*)semesters? ([^ ]*) [ ]*der Technischen Universität Darmstadt", title.text)
     print(title)
     print("Semester:", match[1], match[2])
     return match[1], match[2]

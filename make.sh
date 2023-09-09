@@ -16,3 +16,6 @@ python3 step2.py                      && # generate
   cp gh-pages/*.* gh-pages/"$today"   && # backup
 
 echo success
+if [ "$1" = "rsync" ]
+then rsync -avz --info=progress2 gh-pages/*.* c3:~/.public_html/beautiful-tucan
+fi
