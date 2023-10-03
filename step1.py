@@ -444,7 +444,7 @@ def merge_course(courses, module):
 
     # credits
     details = module['details']
-    credits = 0
+    credits = -1
     credits_ = [i for i in details if i['title'] in ["Credit Points", "CP", "Credits"]]
     if len(credits_) > 0:
         try:

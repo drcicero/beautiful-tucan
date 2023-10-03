@@ -47,6 +47,8 @@ Module2 = TypedDict("Module2", {
   "language": str,
 })
 
+pairs: dict[(str, int, float), int] = dict()
+
 def stache(x: str, y: Dict[str, Any]) -> str:
   return pystache.render(x, y) # type: ignore
 
@@ -149,6 +151,7 @@ def main() -> None:
         }
         utils.file_write(folder + "/" + href, stache(page_tmpl, page_data))
 
+    import pprint; print("(FB, CP, SWS): count"); pprint.pprint(pairs)
     print("finished")
 
 
@@ -189,7 +192,6 @@ def generate_page(data: List[Module2]) -> str:
       result += gencategory(c, str_modules)
     return result
 
-
 def clean(module_id: str, entry: Module,
           fields: Dict[str, Dict[str, Tuple[str, str]]],
           regulation: str) -> Module2:
@@ -220,7 +222,8 @@ def clean(module_id: str, entry: Module,
     title = utils.remove_bracketed_part(title)
     title = utils.remove_bracketed_part(title)
     title = utils.roman_to_latin_numbers(title)
-    title = title.replace("Praktikum in der Lehre - ", "")
+    title = title.replace("Praktikum in der Lehre - ", "Pidl - ")
+    title = title.replace("Praktikum in der Lehre zu ", "Pidl - ")
     abbr = get_abbr(title)
 
     # language
@@ -240,12 +243,21 @@ def clean(module_id: str, entry: Module,
     short_owner = "; ".join(i.split()[-1] for i in owner.split("; "))
 
     # category
-    isos = first_entry['title'].split(" ")[0].endswith("-os")
+    #isos = first_entry['title'].split(" ")[0].endswith("-os")
     category = fields.get(regulation, {}).get(module_id, ["",""])[0]
     category = clean_category(category)
     if category == "C. Fachübergreifende Lehrveranstaltungen": category = ""
+    category_based_on_module_id_ending = {
+      "-se": "B. Seminare",
+      "-pr": "B. Praktika",
+      "-pl": "B. Praktika in der Lehre",
+      "-os": "B. Oberseminare",
+      #"-vl": "A. Vorlesungen und integrierte Veranstaltungen",
+      #"-iv": "A. Vorlesungen und integrierte Veranstaltungen",
+    }.get(first_entry['title'].split(" ")[0][-3:], None)
+    #print(first_entry['title'].split(" ")[0][-3:], category_based_on_module_id_ending)
     category = (
-      "B. Oberseminare" if isos else # category == "B. Seminare" and entry["credits"] == 0
+      #"B. Oberseminare" if isos else # category == "B. Seminare" and entry["credits"] == 0
       category or {
         "01": "C. Nebenfach FB 01 (Wirtschaft & Recht; Entrepeneurship)",
         "02": "C. Nebenfach FB 02 (Philosophie)",
@@ -257,14 +269,16 @@ def clean(module_id: str, entry: Module,
         "16": "C. Nebenfach FB 16 (Fahrzeugtechnik)",
         "18": "C. Nebenfach FB 18 (Elektrotechnik)",
         "41": "C. Sprachkurse",
-      }.get(module_id[:2], "0. Pflichtveranstaltungen")
+      }.get(module_id[:2], None)
+      or category_based_on_module_id_ending
+      or "0. Nicht einsortierte Veranstaltungen"
     )
     if "B.Sc." in regulation:
-      category = category.replace("C. Nebenfach FB 04 (Logik; Numerik; Optimierung; Stochastik)", "0. Pflichtveranstaltungen")
+      category = category.replace("C. Nebenfach FB 04 (Logik; Numerik; Optimierung; Stochastik)", "0. Mathe und Pflichtveranstaltungen")
       category = category.replace("Nebenfach", "Fachübergreifend")
-      category = category.replace("0. Pflichtveranstaltungen", "0. Mathe und Pflicht; und nicht einsortierte Veranstaltungen)")
-    else:
-      category = category.replace("Pflichtveranstaltungen", "Nicht einsortierte Veranstaltungen")
+      #category = category.replace("Pflichtveranstaltungen", "Nicht einsortierte Veranstaltungen")
+    #else:
+    #  category = category.replace("Pflichtveranstaltungen", "Nicht einsortierte Veranstaltungen")
 
     # dates
     def pdt(day: str) -> datetime.datetime:
@@ -368,6 +382,12 @@ def clean(module_id: str, entry: Module,
             ) + "<br/>"
 
     # result
+    sws     = sum((float(i["details"][:-4].replace(",",".")) for course in courses for i in course["details"] if i["title"] in ["Semesterwochenstunden", "SWS"]))
+    credits = entry["credits"]
+    key = (module_id[0:2], credits, sws)
+    pairs[key] = pairs.get(key, 0) + 1
+    #print(module_id, sws, credits)
+
     result = utils.merge_dict(entry, alldates) # type: ignore
     assert result['module_id'] == module_id
     del result['module_id']
@@ -375,7 +395,8 @@ def clean(module_id: str, entry: Module,
         "id": module_id,
         "title": title, "title_short": abbr,
         "owner": owner, "owner_short": short_owner,
-        "credits": str(entry["credits"]).zfill(2),
+        "credits": str(credits).zfill(2) if credits != -1 else "??",
+        "sws": str(sws),
         'category': category,
         "language": language,
     })
