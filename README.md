@@ -1,6 +1,6 @@
 # Notice
 
-Data from www.inferno.tu-darmstadt.de (course -> regulation, course -> credit points) is only accessible from inside TU Darmstadt network, e.g., VPN.
+Data from http://inferno.dekanat.informatik.tu-darmstadt.de (course -> regulation, course -> credit points) is only accessible from inside TU Darmstadt network, e.g., VPN.
 
 # RUN
 
