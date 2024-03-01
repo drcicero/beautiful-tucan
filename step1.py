@@ -414,6 +414,8 @@ def inner_join(courses: Iterable[Course], modules: Iterable[Module]
 def get_inferno_page(module_id):
     soup = state.inferno_br.getcached(INFERNO_PREFIX + module_id + "?lang=de")
     details = extract_inferno_module(soup) or {}
+    if len(details) == 0:
+      print("\r(warn: inferno empty for '{}'".format(module_id))
     # TODO get title
     regulations = [i['details']
                    for i in details['details']

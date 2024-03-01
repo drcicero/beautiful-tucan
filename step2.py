@@ -94,10 +94,11 @@ def main() -> None:
       (k,
        k.replace("B.Sc.", "Bachelor")
         .replace("M.Sc.", "Master")
-        .replace(" (2015)", ""),
+        # .replace(" (2015)", "")
+        ,
        filename(k) + ".html")
       for k in fields.keys()
-      if k.endswith(" (2015)")
+      # if k.endswith(" (2015)")
      ] + [
       # other FBs?
       ("BauUmwelt", "FB 13 Bau, Umwelt", "BauUmwelt.html")
