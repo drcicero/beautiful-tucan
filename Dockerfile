@@ -1,9 +1,9 @@
 FROM python:3.10-slim
 
-COPY . /beautiful-tucan
-
 WORKDIR /beautiful-tucan
 
 RUN pip install mechanicalsoup pystache mypy sqlite_dbm
 
-CMD sh make.sh && cp gh-pages/* /dist
+COPY make.sh step1.py step2.py utils.py page.html index.html style.css code.common.js code.orig.js ./
+
+CMD sh -c "ls -la cache; sh make.sh"

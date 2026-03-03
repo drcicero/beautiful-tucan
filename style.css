@@ -34,7 +34,7 @@ summary b {padding:.5em; padding-bottom:0; display:block}
 .module {display:flex; border:1px dotted silver; padding:0.25em 0.5em}
 .module:hover {border:1px solid black; cursor:pointer;}
 .module > span {overflow:hidden; text-overflow:ellipsis; white-space:nowrap}
-.module > span:nth-child(1) {width:3em;color:red}
+.module > span:nth-child(1) {width:4em;color:red}
 .module > span:nth-child(2) {width:3em}
 .module > span:nth-child(3) {flex-grow:1; width:0}
 .module > span:nth-child(4) {width:6em;color:green}

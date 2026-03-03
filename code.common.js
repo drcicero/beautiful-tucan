@@ -108,7 +108,7 @@ function saveState() {
     var mkRow = lst => "<tr><td>" + lst.join("</td><td>") + "</tr></td>"
     var dates = selected
       .flatMap(module => Object.values(module.content))
-      .flatMap(course => [...course.dates, ...course.uedates])
+      .flatMap(course => [...course.dates, ...course.datesue])
       .map(x => x.split("\t")[0]);
 
     var selectedonce = selected
@@ -137,7 +137,7 @@ function saveState() {
       .map(x => x[1])
       .join("");
 
-//...x[1].uedates.filter(
+//...x[1].datesue.filter(
 //        w => selectuebungs[x[0].id] ===
 //               num_to_day(new Date(w.split("\t")[0]).getDay())
 //               + " " + w.split("\t")[1]+" - "+w.split("\t")[2]
@@ -191,10 +191,10 @@ function saveState() {
     + "<div id=main21>"
     + "Du hast "
     + selected
-      .map   (module => parseInt(module.credits))
+      .map   (module => parseInt(module.sws))
       .reduce((x,y) => x+y, 0)
-    +" CP in folgenden Kursen ausgewählt:<br>"
-    + selected.map(module => module.title_short + " (" + parseInt(module.credits) + "cp)").join(", ")
+    +" SWS in folgenden Kursen ausgewählt:<br>"
+    + selected.map(module => module.title_short + " (" + parseInt(module.sws) + " SWS)").join(", ")
     + "<br><br>"
     + "</div>"
 
@@ -240,7 +240,7 @@ function saveState() {
       var w    = daywidth/parts - 1;
 
       var dates = Object.values(select.content)
-        .flatMap(course => [...course.dates, ...course.uedates])
+        .flatMap(course => [...course.dates, ...course.datesue])
         .map(x => x.split("\t")[0]);
 
       var desc  = select.title_short + " - " + format_timespan(week) + "<br>"

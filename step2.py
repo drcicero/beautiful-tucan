@@ -1,3 +1,4 @@
+#! .venv/bin/python3
 import collections, itertools, json, datetime, locale, re, os
 import bs4, pystache
 
@@ -15,7 +16,7 @@ Course = TypedDict("Course", {
   "title": str,
   "details": List[Entry],
   "dates": List[str],
-  "uedates": List[str]
+  "datesue": List[str]
 })
 Module = TypedDict("Module", {
   "content": Dict[str, Course],
@@ -61,10 +62,17 @@ def main() -> None:
     semester = semester[0] +" "+ semester[1]
     folder   = "gh-pages/"
 
-    pflicht: List[Tuple[str, str]] = []
-    fields: Dict[str, Dict[str, Tuple[str, str]]] = {}
-    pflicht = utils.json_read(prefix + "pre-tucan-pflicht.json", pflicht)
-    fields = utils.json_read(prefix + "pre-inferno.json", fields)
+    tucan: List[Tuple[str, str]] = []
+    tucan = utils.json_read(prefix + "pre-tucan.json", tucan)
+#    pflicht: List[Tuple[str, str]] = []
+#    pflicht = utils.json_read(prefix + "pre-tucan-pflicht.json", pflicht)
+#    wahl:    List[Tuple[str, str]] = []
+#    wahl    = utils.json_read(prefix + "pre-tucan-wahl.json", wahl)
+    fields:  Dict[str, Dict[str, Tuple[str, str]]] = {}
+    fields  = {"FB20 - Informatik": {i[1].split(" ")[0]:i[0] for i in tucan}}
+    # fields =  utils.json_read(prefix + "pre-inferno.json", fields)
+#    from pprint import pprint
+#    pprint(fields)
 
     #nebenfach = utils.json_read("nebenfach.json")
 #    back = utils.groupby(((course, major +" · "+ category)
@@ -98,10 +106,12 @@ def main() -> None:
         ,
        filename(k) + ".html")
       for k in fields.keys()
-      # if k.endswith(" (2015)")
+      if  not k.endswith(" (2004)")
+      and not k.endswith(" (2007)")
+      and not k.endswith(" (2009)")
      ] + [
       # other FBs?
-      ("BauUmwelt", "FB 13 Bau, Umwelt", "BauUmwelt.html")
+#      ("BauUmwelt", "FB 13 Bau, Umwelt", "BauUmwelt.html")
     ]
 
     listy = [
@@ -126,7 +136,6 @@ def main() -> None:
       "experimentallist": experimentallist,
       "speciallist": speciallist,
     }
-    utils.file_write(folder + "/index.html", stache(index_tmpl, index_data))
     utils.file_write(folder + "/main.js", code_tmpl)
     utils.file_write(folder + "/style.css", style_tmpl)
 
@@ -134,6 +143,7 @@ def main() -> None:
     for regulation, display_regulation, href in regulations:
         print(prefix + "-" + filename(regulation) + ".json")
         modules: Dict[str, Module] = {}
+#        modules = utils.json_read(prefix + "tucan.json", {})
         modules = utils.json_read(prefix + "-" + filename(regulation) + ".json", modules)
         if modules == []: continue # if file exists
 
@@ -152,6 +162,8 @@ def main() -> None:
         }
         utils.file_write(folder + "/" + href, stache(page_tmpl, page_data))
 
+    utils.file_write(folder + "/index.html", stache(index_tmpl, index_data))
+
     import pprint; print("(FB, CP, SWS): count"); pprint.pprint(pairs)
     print("finished")
 
@@ -162,7 +174,7 @@ def generate_page(data: List[Module2]) -> str:
   <label><input id='checker-{{id}}' class=checker type=checkbox></label>
   <details class=module-wrapper>
     <summary id='module-{{id}}' class='module box-b box-b-{{id}}'>
-      <span>{{credits}}cp</span>
+      <span>{{sws}} SWS</span>
       <span>{{title_short}}</span>
       <span title='{{title}}'>{{title}}</span>
       <span title='{{owner}}'>{{owner_short}}</span>
@@ -245,41 +257,44 @@ def clean(module_id: str, entry: Module,
 
     # category
     #isos = first_entry['title'].split(" ")[0].endswith("-os")
-    category = fields.get(regulation, {}).get(module_id, ["",""])[0]
-    category = clean_category(category)
-    if category == "C. Fachübergreifende Lehrveranstaltungen": category = ""
-    category_based_on_module_id_ending = {
-      "-se": "B. Seminare",
-      "-pr": "B. Praktika",
-      "-pl": "B. Praktika in der Lehre",
-      "-os": "B. Oberseminare",
-      #"-vl": "A. Vorlesungen und integrierte Veranstaltungen",
-      #"-iv": "A. Vorlesungen und integrierte Veranstaltungen",
-    }.get(first_entry['title'].split(" ")[0][-3:], None)
-    #print(first_entry['title'].split(" ")[0][-3:], category_based_on_module_id_ending)
-    category = (
-      #"B. Oberseminare" if isos else # category == "B. Seminare" and entry["credits"] == 0
-      category or {
-        "01": "C. Nebenfach FB 01 (Wirtschaft & Recht; Entrepeneurship)",
-        "02": "C. Nebenfach FB 02 (Philosophie)",
-        "03": "C. Nebenfach FB 03 (Humanw.; Sportw.)",
-        "04": "C. Nebenfach FB 04 (Logik; Numerik; Optimierung; Stochastik)",
-        "05": "C. Nebenfach FB 05 (Elektrow.; Physik)",
-        "11": "C. Nebenfach FB 11 (Geow.)",
-        "13": "C. Nebenfach FB 13 (Bauinformatik; Verkehr)",
-        "16": "C. Nebenfach FB 16 (Fahrzeugtechnik)",
-        "18": "C. Nebenfach FB 18 (Elektrotechnik)",
-        "41": "C. Sprachkurse",
-      }.get(module_id[:2], None)
-      or category_based_on_module_id_ending
-      or "0. Nicht einsortierte Veranstaltungen"
-    )
-    if "B.Sc." in regulation:
-      category = category.replace("C. Nebenfach FB 04 (Logik; Numerik; Optimierung; Stochastik)", "0. Mathe und Pflichtveranstaltungen")
-      category = category.replace("Nebenfach", "Fachübergreifend")
-      #category = category.replace("Pflichtveranstaltungen", "Nicht einsortierte Veranstaltungen")
-    #else:
-    #  category = category.replace("Pflichtveranstaltungen", "Nicht einsortierte Veranstaltungen")
+#    print(regulation, module_id)
+#    print(fields.get(regulation, {}).get(module_id, [[],"",""]))
+    category = " / ".join(fields.get(regulation, {}).get(module_id, [[],"",""]))
+#    category = clean_category(category)
+#    if category == "C. Fachübergreifende Lehrveranstaltungen": category = ""
+#    category_based_on_module_id_ending = {
+#      "-se": "B. Seminare",
+#      "-pr": "B. Praktika",
+#      "-pl": "B. Praktika in der Lehre",
+#      "-os": "B. Oberseminare",
+#      #"-vl": "A. Vorlesungen und integrierte Veranstaltungen",
+#      #"-iv": "A. Vorlesungen und integrierte Veranstaltungen",
+#    }.get(first_entry['title'].split(" ")[0][-3:], None)
+#    #print(first_entry['title'].split(" ")[0][-3:], category_based_on_module_id_ending)
+#    category = (
+#      #"B. Oberseminare" if isos else # category == "B. Seminare" and entry["credits"] == 0
+#      category or {
+#        "01": "C. Nebenfach FB 01 (Wirtschaft & Recht; Entrepeneurship)",
+#        "02": "C. Nebenfach FB 02 (Philosophie)",
+#        "03": "C. Nebenfach FB 03 (Humanw.; Sportw.)",
+#        "04": "C. Nebenfach FB 04 (Logik; Numerik; Optimierung; Stochastik)",
+#        "05": "C. Nebenfach FB 05 (Elektrow.; Physik)",
+#        "11": "C. Nebenfach FB 11 (Geow.)",
+#        "13": "C. Nebenfach FB 13 (Bauinformatik; Verkehr)",
+#        "16": "C. Nebenfach FB 16 (Fahrzeugtechnik)",
+#        "18": "C. Nebenfach FB 18 (Elektrotechnik)",
+#        "41": "C. Sprachkurse",
+#      }.get(module_id[:2], None)
+#      or category_based_on_module_id_ending
+#      or "0. Nicht einsortierte Veranstaltungen"
+##      "0. Pflicht- und Wahl-Veranstaltungen"
+#    )
+#    if "B.Sc." in regulation:
+#      category = category.replace("C. Nebenfach FB 04 (Logik; Numerik; Optimierung; Stochastik)", "0. Mathe und Pflichtveranstaltungen")
+#      category = category.replace("Nebenfach", "Fachübergreifend")
+#      #category = category.replace("Pflichtveranstaltungen", "Nicht einsortierte Veranstaltungen")
+#    #else:
+#    #  category = category.replace("Pflichtveranstaltungen", "Nicht einsortierte Veranstaltungen")
 
     # dates
     def pdt(day: str) -> datetime.datetime:
@@ -290,7 +305,7 @@ def clean(module_id: str, entry: Module,
       return fmtdt(pdt(day) + datetime.timedelta(weeks=n))
 
     dates   = {i for course in courses for i in course.get('dates', [])}
-    uedates = {i for course in courses for i in course.get('uedates', [])}
+    uedates = {i for course in courses for i in course.get('datesue', [])}
     uebung  = "Übung " if len(uedates) != 1 else "Übungsstunde"
     uedates2 = {"\t".join(
                  [shiftNweeks(i, y.split("\t",1)[0])] +
@@ -396,8 +411,8 @@ def clean(module_id: str, entry: Module,
         "id": module_id,
         "title": title, "title_short": abbr,
         "owner": owner, "owner_short": short_owner,
-        "credits": str(credits).zfill(2) if credits != -1 else "??",
-        "sws": str(sws),
+#        "credits": str(credits).zfill(2) if credits != -1 else "??",
+        "sws": str(int(sws)),
         'category': category,
         "language": language,
     })
@@ -406,35 +421,35 @@ def clean(module_id: str, entry: Module,
 def clean_category(path: str) -> str:
     replacements = [
         # PO 2009
-        ("Grundstudium", "Pflicht"),
-        ("Kanonikfächer \| Kanonische Einführungsveranstaltungen", "Pflicht"),
-        ("Wahlpflichtbereich \| Wahlpflichtbereich A", "Wahl-A"),
-        ("Wahlpflichtbereich \| Wahlpflichtbereich B", "Wahl-B"),
-        ("Projekte, Projektpraktika und ähnliche Veranstaltungen", "B. Praktika"),
-        (" \| [^ ]* Prüfungsleistungen", ""),
-        (" \| [^|]* \| ([A-Z]*) Studienleistungen \| \\1 (.*)$", " | \\2 /// \\1 "),
+        (r"Grundstudium", "Pflicht"),
+        (r"Kanonikfächer \| Kanonische Einführungsveranstaltungen", "Pflicht"),
+        (r"Wahlpflichtbereich \| Wahlpflichtbereich A", "Wahl-A"),
+        (r"Wahlpflichtbereich \| Wahlpflichtbereich B", "Wahl-B"),
+        (r"Projekte, Projektpraktika und ähnliche Veranstaltungen", "B. Praktika"),
+        (r" \| [^ ]* Prüfungsleistungen", ""),
+        (r" \| [^|]* \| ([A-Z]*) Studienleistungen \| \\1 (.*)$", " | \\2 /// \\1 "),
 
         # PO 2015
-        ("Pflichtbereich", "BSc Pflicht"),
-        ("Wahlbereich \| Studienleistungen", "BSc Wahl"),
-        ("Vorgezogene Masterleistungen \| Vorgezogene Masterleistungen der Informatik \|", "MSc"),
-        ("Wahlbereich Fachprüfungen", "Wahl-A"),
-        ("Wahlbereich Studienleistungen", "Wahl-B"),
-        (" \(sp-FB20\)", ""),
-        ("Praktika, Projektpraktika, ähnliche LV", "B. Praktika"),
-        ("Praktika, Projektpraktika und ähnliche Veranstaltungen", "B. Praktika"),
-        ("Fachübergreifende Lehrveranstaltungen", "C. Fachübergreifende Lehrveranstaltungen"),
-        ("Wahlbereiche \| ", ""),
+        (r"Pflichtbereich", "BSc Pflicht"),
+        (r"Wahlbereich \| Studienleistungen", "BSc Wahl"),
+        (r"Vorgezogene Masterleistungen \| Vorgezogene Masterleistungen der Informatik \|", "MSc"),
+        (r"Wahlbereich Fachprüfungen", "Wahl-A"),
+        (r"Wahlbereich Studienleistungen", "Wahl-B"),
+        (r" \(sp-FB20\)", ""),
+        (r"Praktika, Projektpraktika, ähnliche LV", "B. Praktika"),
+        (r"Praktika, Projektpraktika und ähnliche Veranstaltungen", "B. Praktika"),
+        (r"Fachübergreifende Lehrveranstaltungen", "C. Fachübergreifende Lehrveranstaltungen"),
+        (r"Wahlbereiche \| ", ""),
 
         # common
-        ("Praktika in der Lehre", "B. Praktika in der Lehre"),
-        ("Praktikum in der Lehre", "B. Praktika in der Lehre"),
-        ("Module der ", ""),
-        ("Fachübergreifend \| Gesamtkatalog aller Module des Sprachenzentrums", "Sprachzentrum"),
-        (" \| ([^|]*) \| \\1", " | \\1 "),
-        ("Projektpraktika", "X Praktika"),
-        ("Projekte", "B. Praktika"),
-        ("Seminare", "B. Seminare")
+        (r"Praktika in der Lehre", "B. Praktika in der Lehre"),
+        (r"Praktikum in der Lehre", "B. Praktika in der Lehre"),
+        (r"Module der ", ""),
+        (r"Fachübergreifend \| Gesamtkatalog aller Module des Sprachenzentrums", "Sprachzentrum"),
+        (r" \| ([^|]*) \| \\1", " | \\1 "),
+        (r"Projektpraktika", "X Praktika"),
+        (r"Projekte", "B. Praktika"),
+        (r"Seminare", "B. Seminare")
     ]
     for match, result in replacements:
         path = re.sub(match, result, path)

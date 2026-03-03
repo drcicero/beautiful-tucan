@@ -89,7 +89,7 @@ def json_read(path: str, default: X) -> X:
     if os.path.exists(path):
         with open(path) as f:
             return json.load(f) # type: ignore
-    raise
+    else: return default
 
 def json_read_or(path: str, func: Callable[[], X]) -> X:
     if os.path.exists(path):
